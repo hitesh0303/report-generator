@@ -1,24 +1,18 @@
 // src/context/AuthContext.js
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import axios from 'axios';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    // Initialize state from localStorage during component mount
+    return !!localStorage.getItem('token');
+  });
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) setIsAuthenticated(true);
-  }, []);
-
-  const login = async (email, password) => {
-    try {
-      const { data } = await axios.post('http://localhost:8000/api/login', { email, password });
-      localStorage.setItem('token', data.token);
+  const login = (token) => {
+    if (token) {
+      localStorage.setItem('token', token);
       setIsAuthenticated(true);
-    } catch (error) {
-      alert('Login failed');
     }
   };
 
