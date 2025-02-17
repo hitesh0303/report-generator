@@ -4,7 +4,6 @@ import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { saveAs } from 'file-saver';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 
 const ReportOutput = () => {
   const [report, setReport] = useState(null);
@@ -14,10 +13,12 @@ const ReportOutput = () => {
     const fetchReport = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await axios.get(`http://localhost:8000/api/reports/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+        const response = await axios.get(`http://localhost:8000/api/reports/${id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
         setReport(response.data);
       } catch (error) {
-        console.error('Error fetching report:', error);
+        console.error("Error fetching report:", error);
       }
     };
     fetchReport();
@@ -25,7 +26,6 @@ const ReportOutput = () => {
 
   if (!report) return <p>Loading report...</p>;
 
-  // Generate Word Document
   const generateWordReport = async () => {
     const doc = new Document({
       sections: [{
@@ -35,9 +35,16 @@ const ReportOutput = () => {
           new Paragraph(new TextRun({ text: `Subject: ${report.subjectName}`, bold: true })),
           new Paragraph(`Faculty: ${report.facultyName}`),
           new Paragraph(`Date: ${report.date}`),
-          new Paragraph(`Total Students: ${report.participationData.totalStudents}`),
-          new Paragraph(`Material Provided: ${report.participationData.materialProvided}`),
-          new Paragraph(`Students Participated: ${report.participationData.participated}`),
+          new Paragraph(`Students Attended: ${report.participationData.totalStudents}`),
+          new Paragraph(""),
+          new Paragraph({ text: "Objectives:", heading: "Heading1" }),
+          ...report.objectives.map(obj => new Paragraph(obj)),
+          new Paragraph(""),
+          new Paragraph({ text: "Learning Outcomes:", heading: "Heading1" }),
+          new Paragraph(report.learningOutcomes),
+          new Paragraph(""),
+          new Paragraph({ text: "Student Feedback Analysis:", heading: "Heading1" }),
+          ...report.feedback.map(fb => new Paragraph(`Roll No: ${fb.rollNo} - ${fb.expectation}`)),
         ],
       }],
     });
@@ -53,18 +60,9 @@ const ReportOutput = () => {
       <p>Faculty: {report.facultyName}</p>
       <p>Students Attended: {report.participationData.totalStudents}</p>
 
-      {/* Feedback Chart */}
-      <h2 className="text-2xl font-bold mt-6">Feedback Analysis</h2>
-      <BarChart width={600} height={300} data={report.feedback}>
-        <CartesianGrid strokeDasharray="3 3" />
-        <XAxis dataKey="rollNo" />
-        <YAxis />
-        <Tooltip />
-        <Legend />
-        <Bar dataKey="expectation" fill="#8884d8" />
-      </BarChart>
-
-      <button onClick={generateWordReport} className="mt-4 bg-green-500 text-white p-2 rounded">Download Report</button>
+      <button onClick={generateWordReport} className="mt-4 bg-green-500 text-white p-2 rounded">
+        Download Report
+      </button>
     </div>
   );
 };
