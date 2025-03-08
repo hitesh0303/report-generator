@@ -4,7 +4,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AuthenticationPage from './components/AuthenticationPage';
 import ReportForm from './components/ReportForm';
-import ReportOutput from './components/ReportOutput';
+//import ReportOutput from './components/ReportOutput';
 import Dashboard from './components/Dashboard';
 import Navbar from './components/Navbar';
 
@@ -19,7 +19,6 @@ function App() {
             <Route path="/signup" element={<AuthenticationPage />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/create-report" element={<ProtectedRoute><ReportForm /></ProtectedRoute>} />
-            <Route path="/view-report/:id" element={<ProtectedRoute><ReportOutput /></ProtectedRoute>} />
             <Route path="/" element={<Navigate to="/dashboard" />} />
           </Routes>
         </div>
