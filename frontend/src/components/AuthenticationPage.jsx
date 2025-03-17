@@ -40,20 +40,22 @@ const AuthenticationPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100">
-      <h1 className="text-3xl font-bold text-center mb-6">Teaching Activity Report System</h1>
+    <div className="min-h-screen flex flex-col items-center justify-center">
+          
+      {isSignup ? <h1 className="text-4xl font-extrabold text-gray-800 text-center mb-8">Sign Up</h1> :
+      <h1 className="text-4xl font-extrabold text-gray-800 text-center mb-8">Login Page</h1>}
       
-      <div className="bg-white p-8 shadow-lg rounded-lg w-96">
-        <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="bg-white p-10 shadow-2xl rounded-lg w-full max-w-md transform transition duration-500 hover:scale-105">
+        <form onSubmit={handleSubmit} className="space-y-6">
           {isSignup && (
             <div>
-              <label className="block font-medium text-gray-700">Full Name</label>
+              <label className="block font-semibold text-gray-800">Full Name</label>
               <div className="relative">
-                <FaUser className="absolute left-3 top-3 text-gray-400" />
+                <FaUser className="absolute left-3 top-4 text-gray-500" />
                 <input
                   type="text"
                   placeholder="Enter your full name"
-                  className="pl-10 w-full p-2 border rounded"
+                  className="pl-10 w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                   onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                   required={isSignup}
                 />
@@ -62,13 +64,13 @@ const AuthenticationPage = () => {
           )}
 
           <div>
-            <label className="block font-medium text-gray-700">Email Address</label>
+            <label className="block font-semibold text-gray-800">Email Address</label>
             <div className="relative">
-              <FaEnvelope className="absolute left-3 top-3 text-gray-400" />
+              <FaEnvelope className="absolute left-3 top-4 text-gray-500" />
               <input
                 type="email"
                 placeholder="Enter your email"
-                className="pl-10 w-full p-2 border rounded"
+                className="pl-10 w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 required
               />
@@ -76,13 +78,13 @@ const AuthenticationPage = () => {
           </div>
 
           <div>
-            <label className="block font-medium text-gray-700">Password</label>
+            <label className="block font-semibold text-gray-800">Password</label>
             <div className="relative">
-              <FaLock className="absolute left-3 top-3 text-gray-400" />
+              <FaLock className="absolute left-3 top-4 text-gray-500" />
               <input
                 type="password"
                 placeholder="Create a password"
-                className="pl-10 w-full p-2 border rounded"
+                className="pl-10 w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 required
               />
@@ -91,13 +93,13 @@ const AuthenticationPage = () => {
 
           {isSignup && (
             <div>
-              <label className="block font-medium text-gray-700">Confirm Password</label>
+              <label className="block font-semibold text-gray-800">Confirm Password</label>
               <div className="relative">
-                <FaLock className="absolute left-3 top-3 text-gray-400" />
+                <FaLock className="absolute left-3 top-4 text-gray-500" />
                 <input
                   type="password"
                   placeholder="Confirm your password"
-                  className="pl-10 w-full p-2 border rounded"
+                  className="pl-10 w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                   onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                   required={isSignup}
                 />
@@ -107,17 +109,17 @@ const AuthenticationPage = () => {
 
           <button
             type="submit"
-            className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white p-3 rounded text-lg font-medium hover:bg-blue-700 transition"
+            className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white p-3 rounded-lg text-lg font-semibold hover:bg-blue-700 transition duration-300 ease-in-out transform hover:scale-105"
           >
             {isSignup ? <FaUserPlus /> : <FaSignInAlt />}
             {isSignup ? "Create Account" : "Sign In"}
           </button>
         </form>
 
-        <p className="text-center text-sm text-gray-600 mt-4">
+        <p className="text-center text-sm text-gray-600 mt-6">
           {isSignup ? "Already have an account?" : "Don't have an account?"}{" "}
           <button
-            className="text-blue-600 hover:underline"
+            className="text-blue-500 hover:underline"
             onClick={() => setIsSignup(!isSignup)}
           >
             {isSignup ? "Sign in" : "Sign up"}

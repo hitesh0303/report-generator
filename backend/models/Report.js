@@ -13,6 +13,6 @@ const reportSchema = new mongoose.Schema({
   images: [String],
   feedback: [{ rollNo: String, expectation: String }],
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
-});
+}, { timestamps: true });
 
 module.exports = mongoose.model('Report', reportSchema);

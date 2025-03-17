@@ -1,8 +1,12 @@
 // src/components/ReportForm.jsx
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import axios from "axios";
 import { saveAs } from "file-saver";
 import { Document, Packer, Paragraph, TextRun } from "docx";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
+import { FaArrowLeft } from "react-icons/fa";
 
 const ReportForm = () => {
   const initialFormState = {
@@ -30,7 +34,7 @@ const ReportForm = () => {
           properties: {},
           children: [
             new Paragraph({ text: "PUNE INSTITUTE OF COMPUTER TECHNOLOGY", heading: "Title" }),
-            new Paragraph(new TextRun({ text: `Department: Information Technology`, bold: true })),
+            new Paragraph( {text: "Department: Information Technology", bold: true} ),
             new Paragraph(new TextRun({ text: `Academic Year: 2023-2024`, bold: true })),
             new Paragraph(`Subject: ${formData.subjectName}`),
             new Paragraph(`Faculty: ${formData.facultyName}`),
@@ -54,6 +58,37 @@ const ReportForm = () => {
     saveAs(blob, `${formData.title.replace(/\s+/g, "_")}.docx`);
   };
 
+  // ✅ Generate and Download PDF Report
+  const generatePDFReport = () => {
+    const doc = new jsPDF();
+
+    doc.setFontSize(18);
+    doc.text("Teaching Activity Report", 14, 22);
+
+    doc.setFontSize(12);
+    doc.text(`Department: Information Technology`, 14, 30);
+    doc.text(`Academic Year: 2023-2024`, 14, 36);
+    doc.text(`Subject: ${formData.subjectName}`, 14, 42);
+    doc.text(`Faculty: ${formData.facultyName}`, 14, 48);
+    doc.text(`Date: ${formData.date}`, 14, 54);
+    doc.text(`No. of Students Attended: ${formData.participationData.totalStudents}`, 14, 60);
+
+    doc.text("Objectives:", 14, 70);
+    formData.objectives.forEach((obj, index) => {
+      doc.text(`${index + 1}. ${obj}`, 14, 76 + index * 6);
+    });
+
+    doc.text("Learning Outcomes:", 14, 90);
+    doc.text(formData.learningOutcomes, 14, 96);
+
+    doc.text("Student Feedback Analysis:", 14, 110);
+    formData.feedback.forEach((fb, index) => {
+      doc.text(`Roll No: ${fb.rollNo} - ${fb.expectation}`, 14, 116 + index * 6);
+    });
+
+    doc.save(`${formData.title.replace(/\s+/g, "_")}.pdf`);
+  };
+
   // ✅ Handle Form Submission and Reset Form
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -66,8 +101,9 @@ const ReportForm = () => {
 
       console.log("Report Created:", response.data);
 
-      // ✅ Generate and download report
+      // ✅ Generate and download reports
       await generateWordReport(formData);
+      generatePDFReport();
 
       // ✅ Reset form after downloading
       setFormData(initialFormState);
@@ -76,10 +112,23 @@ const ReportForm = () => {
     }
   };
 
+  // Handle form reset
+  const handleReset = () => {
+    if (window.confirm("Are you sure you want to reset the form? All entered data will be lost.")) {
+      setFormData(initialFormState);
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto p-8">
-      <form onSubmit={handleSubmit} className="bg-white p-8 rounded-lg shadow">
-        <h2 className="text-2xl font-bold mb-6">Create New Report</h2>
+      <div className="flex items-center mb-6">
+        <Link to="/dashboard" className="flex items-center text-blue-600 hover:text-blue-800 mb-4">
+          <FaArrowLeft className="mr-2" /> Back to Dashboard
+        </Link>
+      </div>
+      
+      <form onSubmit={handleSubmit} className="bg-white p-8 rounded-lg shadow-lg">
+        <h2 className="text-2xl font-bold mb-6 text-gray-800">Create New Report</h2>
 
         <input
           type="text"
@@ -87,7 +136,7 @@ const ReportForm = () => {
           required
           value={formData.title}
           onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-          className="block w-full p-2 my-2 border rounded"
+          className="block w-full p-3 my-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <input
           type="text"
@@ -95,7 +144,7 @@ const ReportForm = () => {
           required
           value={formData.subjectName}
           onChange={(e) => setFormData({ ...formData, subjectName: e.target.value })}
-          className="block w-full p-2 my-2 border rounded"
+          className="block w-full p-3 my-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <input
           type="text"
@@ -103,14 +152,14 @@ const ReportForm = () => {
           required
           value={formData.facultyName}
           onChange={(e) => setFormData({ ...formData, facultyName: e.target.value })}
-          className="block w-full p-2 my-2 border rounded"
+          className="block w-full p-3 my-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <input
           type="date"
           required
           value={formData.date}
           onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-          className="block w-full p-2 my-2 border rounded"
+          className="block w-full p-3 my-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
 
         {/* ✅ Participation Data */}
@@ -126,7 +175,7 @@ const ReportForm = () => {
                 participationData: { ...formData.participationData, totalStudents: e.target.value },
               })
             }
-            className="p-2 border rounded"
+            className="p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <input
             type="number"
@@ -139,7 +188,7 @@ const ReportForm = () => {
                 participationData: { ...formData.participationData, materialProvided: e.target.value },
               })
             }
-            className="p-2 border rounded"
+            className="p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <input
             type="number"
@@ -152,12 +201,12 @@ const ReportForm = () => {
                 participationData: { ...formData.participationData, participated: e.target.value },
               })
             }
-            className="p-2 border rounded"
+            className="p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
         {/* ✅ Objectives */}
-        <label className="block mt-4 font-bold">Objectives:</label>
+        <label className="block mt-4 font-bold text-gray-800">Objectives:</label>
         {formData.objectives.map((objective, index) => (
           <input
             key={index}
@@ -168,29 +217,49 @@ const ReportForm = () => {
               newObjectives[index] = e.target.value;
               setFormData({ ...formData, objectives: newObjectives });
             }}
-            className="block w-full p-2 my-2 border rounded"
+            className="block w-full p-3 my-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         ))}
         <button
           type="button"
           onClick={() => setFormData({ ...formData, objectives: [...formData.objectives, ""] })}
-          className="text-blue-500 underline"
+          className="text-blue-600 hover:text-blue-800 font-medium flex items-center"
         >
-          + Add Another Objective
+          <span className="mr-1">+</span> Add Another Objective
         </button>
 
         {/* ✅ Learning Outcomes */}
-        <label className="block mt-4 font-bold">Learning Outcomes:</label>
+        <label className="block mt-4 font-bold text-gray-800">Learning Outcomes:</label>
         <textarea
           value={formData.learningOutcomes}
           onChange={(e) => setFormData({ ...formData, learningOutcomes: e.target.value })}
-          className="block w-full p-2 my-2 border rounded"
+          className="block w-full p-3 my-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[100px]"
         />
 
         {/* ✅ Submit Button */}
-        <button type="submit" className="bg-blue-500 text-white p-2 rounded mt-4">
-          Generate Report
-        </button>
+        <div className="flex justify-between mt-6">
+          <div className="flex space-x-3">
+            <Link 
+              to="/dashboard" 
+              className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition duration-300"
+            >
+              Cancel
+            </Link>
+            <button 
+              type="button" 
+              onClick={handleReset}
+              className="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition duration-300"
+            >
+              Reset Form
+            </button>
+          </div>
+          <button 
+            type="submit" 
+            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition duration-300"
+          >
+            Generate Report
+          </button>
+        </div>
       </form>
     </div>
   );

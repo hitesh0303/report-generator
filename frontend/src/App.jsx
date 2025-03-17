@@ -4,21 +4,29 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AuthenticationPage from './components/AuthenticationPage';
 import ReportForm from './components/ReportForm';
+<<<<<<< HEAD
 //import ReportOutput from './components/ReportOutput';
+=======
+>>>>>>> b07fb8b (Your commit message)
 import Dashboard from './components/Dashboard';
+import PreviousReports from './components/PreviousReports';
 import Navbar from './components/Navbar';
 
 function App() {
   return (
     <AuthProvider>
       <Router>
-        <div className="min-h-screen bg-gray-100">
+        <div className="min-h-screen bg-red-50">
           <Navbar />
           <Routes>
             <Route path="/login" element={<AuthenticationPage />} />
             <Route path="/signup" element={<AuthenticationPage />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/create-report" element={<ProtectedRoute><ReportForm /></ProtectedRoute>} />
+<<<<<<< HEAD
+=======
+            <Route path="/previous-reports" element={<ProtectedRoute><PreviousReports /></ProtectedRoute>} />
+>>>>>>> b07fb8b (Your commit message)
             <Route path="/" element={<Navigate to="/dashboard" />} />
           </Routes>
         </div>

@@ -10,9 +10,27 @@ router.post('/reports', authMiddleware, async (req, res) => {
   res.status(201).json(report);
 });
 
+router.get('/reports', authMiddleware, async (req, res) => {
+  try {
+    const reports = await Report.find({ userId: req.userId }).sort({ createdAt: -1 });
+    res.json(reports);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching reports', error: error.message });
+  }
+});
+
 router.get('/reports/:id', authMiddleware, async (req, res) => {
-  const report = await Report.findById(req.params.id);
-  res.json(report);
+  try {
+    const report = await Report.findOne({ _id: req.params.id, userId: req.userId });
+    
+    if (!report) {
+      return res.status(404).json({ message: 'Report not found' });
+    }
+    
+    res.json(report);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching report', error: error.message });
+  }
 });
 
 module.exports = router;
