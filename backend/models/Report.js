@@ -11,8 +11,28 @@ const reportSchema = new mongoose.Schema({
   learningOutcomes: String,
   targetYear: String,
   images: [String],
-  feedback: [{ rollNo: String, expectation: String }],
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
-}, { timestamps: true });
+  feedback: Array,
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  reportType: { type: String, default: 'teaching' },
+  participationData: Object,
+  targetAudience: String,
+  time: String,
+  organizedBy: String,
+  committeeType: String,
+  institution: String,
+  venue: String,
+  fee: String,
+  participants: String,
+  faculty: [{ 
+    name: String,
+    role: String
+  }],
+  students: [String],
+  execution: String,
+  outcomes: [String],
+  impactAnalysis: [String],
+  chartImages: Array,
+  excelData: Array
+}, { timestamps: true, strict: false });
 
 module.exports = mongoose.model('Report', reportSchema);
