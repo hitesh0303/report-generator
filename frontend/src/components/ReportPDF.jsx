@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
     maxHeight: 300,
     objectFit: 'contain',
     alignSelf: 'center',
-    marginBottom: 10
+    marginBottom: 5
   },
 });
 
@@ -757,7 +757,7 @@ const ReportPDF = ({ data }) => (
                       <View style={styles.responseSummary}>
                         <View style={{flexDirection: 'row', flexWrap: 'wrap'}}>
                           {Object.entries(data.feedbackData[currentQuestionIndex].responses).map(([response, count], respIndex) => (
-                            <View key={respIndex} style={{flexDirection: 'row', marginRight: 20, marginBottom: 10, width: '45%'}}>
+                            <View key={respIndex} style={{flexDirection: 'row', marginRight: 20, marginBottom: 5, width: '45%'}}>
                               <SafeText style={{fontSize: 8, fontWeight: 'bold'}}>• {response}: </SafeText>
                               <SafeText style={{fontSize: 8}}>{count} responses</SafeText>
                             </View>
@@ -792,7 +792,7 @@ const ReportPDF = ({ data }) => (
                         <View style={styles.responseSummary}>
                           <View style={{flexDirection: 'row', flexWrap: 'wrap'}}>
                             {Object.entries(data.feedbackData[nextQuestionIndex].responses).map(([response, count], respIndex) => (
-                              <View key={respIndex} style={{flexDirection: 'row', marginRight: 20, marginBottom: 10, width: '45%'}}>
+                              <View key={respIndex} style={{flexDirection: 'row', marginRight: 20, marginBottom: 5, width: '45%'}}>
                                 <SafeText style={{fontSize: 8, fontWeight: 'bold'}}>• {response}: </SafeText>
                                 <SafeText style={{fontSize: 8}}>{count} responses</SafeText>
                               </View>
