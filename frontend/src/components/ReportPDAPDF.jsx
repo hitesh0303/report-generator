@@ -1,5 +1,7 @@
 import React from 'react';
 import { Page, Text, View, Document, StyleSheet, Image } from '@react-pdf/renderer';
+// Import our static images
+import { pictLogo, pdaLogo, pdafront, certificateTemplate, teamPhotoPlaceholder, winnerPhotoPlaceholder } from '../assets/pda/logo.js';
 
 const styles = StyleSheet.create({
     page: { 
@@ -21,11 +23,35 @@ const styles = StyleSheet.create({
         height: 150, 
         marginBottom: 10 
     },
+    staticImage: {
+        width: '100%',
+        maxWidth: 400,
+        height: 'auto',
+        maxHeight: 300,
+        objectFit: 'contain',
+        alignSelf: 'center',
+        marginBottom: 10
+    },
+    staticImage1: {
+        width: '100%',
+        maxWidth: 400,
+        height: 'auto',
+        maxHeight: 600,
+        objectFit: 'contain',
+        alignSelf: 'center',
+        marginBottom: 10
+    },
+    logoImage: {
+        width: 100,
+        height: 70,
+        alignSelf: 'center',
+        marginBottom: 10
+    },
     chartContainer: { 
         flexDirection: 'row', 
         flexWrap: 'wrap', 
         justifyContent: 'center', 
-        gap: 15 
+        gap: 25 
     },
     chartItem: {
         width: '45%',   // Ensures two columns
@@ -96,9 +122,9 @@ const styles = StyleSheet.create({
     t4: { fontSize: 13, textAlign: 'left', marginLeft: 30 },
     t2: { fontSize: 12, textAlign: 'center', marginBottom: 10 },
     chartImage: { 
-        width: 460, 
+        width: 600, 
         height: 'auto',
-        maxHeight: 450, 
+        maxHeight: 550, 
         objectFit: 'contain',
         marginVertical: 5,
         alignSelf: "center"
@@ -157,6 +183,34 @@ const SafeText = ({ style, children }) => {
     }
 };
 
+// Safe Image component to handle image loading errors
+const SafeImage = ({ src, style, fallbackSrc }) => {
+    try {
+        return <Image src={src} style={style} />;
+    } catch (error) {
+        console.error("Error rendering image:", error);
+        // If fallback is provided and primary source fails, try fallback
+        if (fallbackSrc) {
+            try {
+                return <Image src={fallbackSrc} style={style} />;
+            } catch (secondError) {
+                console.error("Error rendering fallback image:", secondError);
+                return (
+                    <View style={[style, { backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center' }]}>
+                        <Text style={{ fontSize: 10, textAlign: 'center' }}>Image not available</Text>
+                    </View>
+                );
+            }
+        }
+        // If no fallback or fallback fails, show placeholder
+        return (
+            <View style={[style, { backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center' }]}>
+                <Text style={{ fontSize: 10, textAlign: 'center' }}>Image not available</Text>
+            </View>
+        );
+    }
+};
+
 const ReportPDAPDF = ({ data = {} }) => {
     // Extract data with fallbacks to prevent errors
     const {
@@ -192,14 +246,18 @@ const ReportPDAPDF = ({ data = {} }) => {
                     <SafeText style={styles.title}>  On {'\n'} {date} {'\n'} </SafeText>
 
                     <SafeText style={styles.title}> Organised by</SafeText>
-                    <View style={styles.logoPlaceholderBox}>
-                        <SafeText style={styles.placeholderText}>[Organization Logo]</SafeText>
+                    {/* Use SafeImage component for the logo */}
+                    <View style={{ alignItems: 'center' }}>
+                        <Image src="/pda.png" style={styles.logoImage} />
                     </View>
                     <SafeText style={styles.title}> {committeeType}</SafeText> 
                     <SafeText style={styles.title}>Society for Computer Technology and Research's {'\n'}
                     {institution} {'\n'} </SafeText>
                     <SafeText style={styles.t2}> Sr No. 27 Pune-Satara Road, Dhankawadi,{'\n'}
-                    Pune, Maharashtra 411043. (www.pict.edu)</SafeText> 
+                    Pune, Maharashtra 411043. (www.pict.edu)</SafeText>
+                    <View style={{ alignItems: 'center' }}>
+                        <Image src="/pda_front.png" style={styles.img} />
+                    </View> 
                 </View>
             </Page>
 
@@ -297,12 +355,14 @@ const ReportPDAPDF = ({ data = {} }) => {
                     )}
 
                     <SafeText style={styles.t5}> Team </SafeText>
-                    <View style={styles.largePlaceholderBox}>
-                        <SafeText style={styles.largePlaceholderText}>[Team Photo]</SafeText>
+                    {/* Use SafeImage for team photo */}
+                    <View style={{ alignItems: 'center', marginVertical: 10 }}>
+                        <Image src="/team.png" style={styles.staticImage} />
                     </View>
                     <SafeText style={styles.t5}> Winner </SafeText>
-                    <View style={styles.largePlaceholderBox}>
-                        <SafeText style={styles.largePlaceholderText}>[Winner Photo]</SafeText>
+                    {/* Use SafeImage for winner photo */}
+                    <View style={{ alignItems: 'center', marginVertical: 10 }}>
+                        <Image src="/winners.png" style={styles.staticImage} />
                     </View>
                 </View>
             </Page>
@@ -310,11 +370,9 @@ const ReportPDAPDF = ({ data = {} }) => {
             <Page size="A4" style={styles.page}>
                 <View style={styles.section}>
                     <SafeText style={styles.t5}> Certificate: </SafeText>
-                    <View style={styles.certificatePlaceholderBox}>
-                        <SafeText style={styles.largePlaceholderText}>[Certificate Template]</SafeText>
-                    </View>
-                    <View style={styles.certificatePlaceholderBox}>
-                        <SafeText style={styles.largePlaceholderText}>[Example Certificate]</SafeText>
+                    {/* Use SafeImage for certificate template */}
+                    <View style={{ alignItems: 'center', marginVertical: 10 }}>
+                        <Image src="/certificate.png" style={styles.staticImage1} />
                     </View>
                 </View>
             </Page>
@@ -339,17 +397,25 @@ const ReportPDAPDF = ({ data = {} }) => {
                                 </View>
                             ))
                         ) : (
-                            // Dummy data if no excelData is provided
-                            Array.from({ length: 10 }, (_, i) => (
-                                <View style={styles.tableRow} key={i}>
-                                    <SafeText style={styles.tableCell}>{i + 1}</SafeText>
-                                    <SafeText style={styles.tableCell}>{`IT_${20000 + i}`}</SafeText>
-                                    <SafeText style={styles.tableCell}>{`Student ${i + 1}`}</SafeText>
-                                    <SafeText style={styles.tableCell}>{Math.floor(Math.random() * 50) + 50}</SafeText>
+                            // If there's no student performance data, show a message instead of dummy data
+                            <View style={styles.tableRow}>
+                                <View style={[styles.tableCell, { flex: 4, textAlign: 'center' }]}>
+                                    <SafeText>No student performance data available. Please upload an Excel file with student data.</SafeText>
                                 </View>
-                            ))
+                            </View>
                         )}
                     </View>
+                    
+                    {/* Add some statistics if we have excel data */}
+                    {excelData && excelData.length > 0 && (
+                        <View style={{ marginTop: 20 }}>
+                            <SafeText style={styles.t5}>Performance Statistics:</SafeText>
+                            <SafeText style={styles.t3}>Total Students: {excelData.length}</SafeText>
+                            <SafeText style={styles.t3}>Average Score: {(excelData.reduce((sum, student) => sum + (parseInt(student['Marks']) || 0), 0) / excelData.length).toFixed(2)}</SafeText>
+                            <SafeText style={styles.t3}>Highest Score: {Math.max(...excelData.map(student => parseInt(student['Marks']) || 0))}</SafeText>
+                            <SafeText style={styles.t3}>Lowest Score: {Math.min(...excelData.map(student => parseInt(student['Marks']) || 0))}</SafeText>
+                        </View>
+                    )}
                 </View>
             </Page>
 
@@ -359,12 +425,12 @@ const ReportPDAPDF = ({ data = {} }) => {
 
                     {chartImages && chartImages.length > 0 ? (
                         chartImages.map((img, index) => (
-                            <View key={index} style={{ marginBottom: 20 }}>
+                            <View key={index} style={{ marginBottom: 10 }}>
                                 <SafeText style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 8, textAlign: 'center' }}>
                                     {img.title}
                                 </SafeText>
                                 {img.src ? (
-                                    <Image src={img.src} style={styles.chartImage} />
+                                    <SafeImage src={img.src} style={styles.chartImage} />
                                 ) : (
                                     <View style={styles.placeholderBox}>
                                         <SafeText style={styles.placeholderText}>[Chart Image: {img.title}]</SafeText>

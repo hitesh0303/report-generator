@@ -35,7 +35,8 @@ const ReportForm = () => {
       participationPercentage: 0
     },
     feedbackData: [], // Store processed feedback data
-    chartImages: [] // Store base64 images of charts
+    chartImages: [], // Store base64 images of charts
+    excelData: [] // Store student performance data
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -43,10 +44,13 @@ const ReportForm = () => {
   const [imageFiles, setImageFiles] = useState([]);
   const [isGeneratingWord, setIsGeneratingWord] = useState(false);
   const [feedbackFile, setFeedbackFile] = useState(null);
+  const [studentDataFile, setStudentDataFile] = useState(null);
   const [chartData, setChartData] = useState([]);
   const [isProcessingFeedback, setIsProcessingFeedback] = useState(false);
+  const [isProcessingStudentData, setIsProcessingStudentData] = useState(false);
   const fileInputRef = useRef(null);
   const feedbackInputRef = useRef(null);
+  const studentDataInputRef = useRef(null);
   const chartsContainerRef = useRef(null);
   const [downloadStatus, setDownloadStatus] = useState("");
   const [chartImages, setChartImages] = useState([]);
@@ -95,6 +99,11 @@ const ReportForm = () => {
             new Paragraph({ text: "Learning Outcomes:", heading: "Heading1" }),
             new Paragraph(formData.learningOutcomes),
             new Paragraph(""),
+            new Paragraph({ text: "Student Performance Data:", heading: "Heading1" }),
+            ...(formData.excelData.length > 0 ? 
+              [new Paragraph(`Student performance data for ${formData.excelData.length} students included in the report.`)] : 
+              [new Paragraph("No student performance data available.")]),
+            new Paragraph(""),
             new Paragraph({ text: "Student Feedback Analysis:", heading: "Heading1" }),
               ...(formData.chartImages.length > 0 ? 
                 [new Paragraph("Feedback analysis charts included in the report.")] : 
@@ -135,6 +144,94 @@ const ReportForm = () => {
       ...formData,
       images: newImageFiles.map(img => img.preview)
     });
+  };
+
+  // Parse Student Excel Data
+  const parseStudentExcelData = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      
+      reader.onload = (e) => {
+        try {
+          const data = e.target.result;
+          const workbook = XLSX.read(data, { type: 'binary' });
+          const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+          
+          // Validate the data has the required columns
+          if (jsonData.length === 0) {
+            reject(new Error("The Excel file is empty."));
+            return;
+          }
+          
+          // Check for required columns
+          const firstRow = jsonData[0];
+          const requiredColumns = ['Sr No', 'Roll Number', 'Name', 'Marks'];
+          const missingColumns = requiredColumns.filter(col => !(col in firstRow));
+          
+          if (missingColumns.length > 0) {
+            reject(new Error(`Missing required columns: ${missingColumns.join(', ')}`));
+            return;
+          }
+          
+          // Process the data to normalize it
+          const processedData = jsonData.map(row => {
+            return {
+              'Sr No': row['Sr No'] || '',
+              'Roll Number': row['Roll Number'] || '',
+              'Name': row['Name'] || '',
+              'Marks': row['Marks'] || 0,
+              'Performance': row['Performance'] || (
+                row['Marks'] >= 80 ? 'Excellent' : 
+                row['Marks'] >= 60 ? 'Good' : 
+                row['Marks'] >= 40 ? 'Average' : 'Needs Improvement'
+              )
+            };
+          });
+          
+          resolve(processedData);
+        } catch (error) {
+          console.error("Error processing Excel file:", error);
+          reject(error);
+        }
+      };
+      
+      reader.onerror = (error) => {
+        console.error("Error reading file:", error);
+        reject(error);
+      };
+      
+      reader.readAsBinaryString(file);
+    });
+  };
+
+  // Handle Student Data Excel upload
+  const handleStudentDataUpload = async (e) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setStudentDataFile(file);
+      setIsProcessingStudentData(true);
+      setStatusMessage("Processing student performance data...");
+      
+      try {
+        // Process the Excel file
+        const performanceData = await parseStudentExcelData(file);
+        
+        // Update form data with student performance data
+        setFormData({
+          ...formData,
+          excelData: performanceData
+        });
+        
+        setStatusMessage(`Successfully loaded performance data for ${performanceData.length} students.`);
+      } catch (error) {
+        console.error("Error processing student data file:", error);
+        setStatusMessage(`Error: ${error.message}`);
+        alert("Failed to process student data file. Please check the format and try again.");
+      } finally {
+        setIsProcessingStudentData(false);
+      }
+    }
   };
 
   // Handle Feedback Excel upload
@@ -332,10 +429,12 @@ const ReportForm = () => {
         ...formData,
         chartImages: chartImages, // Ensure latest chart images are included
         feedbackData: formData.feedbackData, // Include the feedback data for the PDF
+        excelData: formData.excelData, // Include student performance data
         reportType: 'teaching' // Mark this as a teaching report
       };
       
       console.log("Saving report with chart images:", reportDataToSave.chartImages?.length);
+      console.log("Saving report with student data:", reportDataToSave.excelData?.length);
       
       const response = await axios.post("http://localhost:8000/api/reports", reportDataToSave, {
         headers: { Authorization: `Bearer ${token}` },
@@ -378,6 +477,7 @@ const ReportForm = () => {
       
       setImageFiles([]);
       setFeedbackFile(null);
+      setStudentDataFile(null);
       setChartData([]);
       setFormData(initialFormState);
     }
@@ -402,7 +502,11 @@ const ReportForm = () => {
       }));
       
       setDownloadStatus("Generating PDF...");
-      const blob = await pdf(<ReportPDF data={{...formData, chartImages}} />).toBlob();
+      const blob = await pdf(<ReportPDF data={{
+        ...formData, 
+        chartImages,
+        excelData: formData.excelData // Ensure student data is included in PDF
+      }} />).toBlob();
       saveAs(blob, `${formData.title.replace(/\s+/g, "_")}_Report.pdf`);
       setDownloadStatus("PDF downloaded successfully!");
       setTimeout(() => setDownloadStatus(""), 2000);
@@ -529,58 +633,155 @@ const ReportForm = () => {
         </div>
 
         {/* ✅ Participation Data */}
-        <div className="mb-6">
-          <label className="block font-bold text-gray-800 mb-2">Participation Data:</label>
-          <div className="grid grid-cols-3 gap-4">
+        <div className="border p-4 rounded-lg mb-4 bg-white shadow-sm">
+          <h3 className="text-lg font-semibold mb-3">Participation Data</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-gray-700 text-sm mb-1">Total Students:</label>
-          <input
-            type="number"
-            placeholder="Total Students"
-            required
-            value={formData.participationData.totalStudents}
-            onChange={(e) =>
-              setFormData({
-                ...formData,
-                participationData: { ...formData.participationData, totalStudents: e.target.value },
-              })
-            }
-                className="block w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Total Students in Class
+              </label>
+              <input
+                type="number"
+                className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={formData.participationData.totalStudents}
+                onChange={(e) => setFormData({
+                  ...formData, 
+                  participationData: {
+                    ...formData.participationData,
+                    totalStudents: e.target.value
+                  }
+                })}
+              />
             </div>
             <div>
-              <label className="block text-gray-700 text-sm mb-1">Material Provided:</label>
-          <input
-            type="number"
-            placeholder="Material Provided"
-            required
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Material Provided To
+              </label>
+              <input
+                type="number"
+                className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={formData.participationData.materialProvidedTo}
-            onChange={(e) =>
-              setFormData({
-                ...formData,
-                    participationData: { ...formData.participationData, materialProvidedTo: e.target.value },
-              })
-            }
-                className="block w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+                onChange={(e) => setFormData({
+                  ...formData, 
+                  participationData: {
+                    ...formData.participationData,
+                    materialProvidedTo: e.target.value
+                  }
+                })}
+              />
             </div>
             <div>
-              <label className="block text-gray-700 text-sm mb-1">Students Participated:</label>
-          <input
-            type="number"
-            placeholder="Students Participated"
-            required
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Students Participated
+              </label>
+              <input
+                type="number"
+                className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={formData.participationData.studentsParticipated}
-            onChange={(e) =>
-              setFormData({
-                ...formData,
-                    participationData: { ...formData.participationData, studentsParticipated: e.target.value },
-              })
-            }
-                className="block w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+                onChange={(e) => setFormData({
+                  ...formData, 
+                  participationData: {
+                    ...formData.participationData,
+                    studentsParticipated: e.target.value
+                  }
+                })}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Participation Percentage
+              </label>
+              <input
+                type="text"
+                readOnly
+                className="w-full p-2 border rounded bg-gray-50"
+                value={`${formData.participationData.participationPercentage}%`}
+              />
             </div>
           </div>
+        </div>
+
+        {/* ✅ Student Performance Data */}
+        <div className="border p-4 rounded-lg mb-4 bg-white shadow-sm">
+          <h3 className="text-lg font-semibold mb-3">Student Performance Data</h3>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Upload Student Performance Excel File (with Sr No, Roll Number, Name, Marks columns)
+            </label>
+            <div className="flex items-center">
+              <input
+                type="file"
+                accept=".xlsx, .xls"
+                ref={studentDataInputRef}
+                className="hidden"
+                onChange={handleStudentDataUpload}
+              />
+              <button
+                type="button"
+                className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-300"
+                onClick={() => studentDataInputRef.current.click()}
+                disabled={isProcessingStudentData}
+              >
+                <FaFileExcel className="mr-2" />
+                {isProcessingStudentData ? "Processing..." : "Upload Excel"}
+              </button>
+              {studentDataFile && (
+                <span className="ml-3 text-sm text-gray-600">
+                  {studentDataFile.name}
+                </span>
+              )}
+            </div>
+            {statusMessage && statusMessage.includes("student performance") && (
+              <p className={`mt-2 text-sm ${statusMessage.includes("Error") ? "text-red-600" : "text-green-600"}`}>
+                {statusMessage}
+              </p>
+            )}
+          </div>
+
+          {/* Preview of uploaded Excel data */}
+          {formData.excelData && formData.excelData.length > 0 && (
+            <div className="mt-4 border rounded-lg p-3 bg-gray-50">
+              <div className="flex justify-between items-center mb-2">
+                <span className="font-medium">Student performance data loaded for {formData.excelData.length} students</span>
+                <button 
+                  type="button"
+                  className="text-red-600 hover:text-red-800"
+                  onClick={() => setFormData(prev => ({...prev, excelData: []}))}
+                >
+                  <FaTrash />
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sr No</th>
+                      <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Roll Number</th>
+                      <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                      <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Marks</th>
+                      <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Performance</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {formData.excelData.slice(0, 5).map((student, index) => (
+                      <tr key={index} className="hover:bg-gray-50">
+                        <td className="px-2 py-1 whitespace-nowrap text-xs">{student['Sr No'] || index + 1}</td>
+                        <td className="px-2 py-1 whitespace-nowrap text-xs">{student['Roll Number']}</td>
+                        <td className="px-2 py-1 whitespace-nowrap text-xs">{student['Name']}</td>
+                        <td className="px-2 py-1 whitespace-nowrap text-xs">{student['Marks']}</td>
+                        <td className="px-2 py-1 whitespace-nowrap text-xs">{student['Performance']}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {formData.excelData.length > 5 && (
+                  <p className="mt-2 text-xs text-gray-500 text-center">
+                    {formData.excelData.length - 5} more records not shown
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ✅ Objectives */}
@@ -767,16 +968,12 @@ const ReportForm = () => {
         {/* Status Messages */}
         {(downloadStatus || statusMessage) && (
           <div className="mb-4 p-3 bg-blue-100 text-blue-700 border border-blue-200 rounded flex items-center">
-            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
             {downloadStatus || statusMessage}
           </div>
         )}
 
         {/* Chart Preview */}
-        {chartImages && chartImages.length > 0 && (
+        {/* {chartImages && chartImages.length > 0 && (
           <div className="mb-6 border border-gray-300 rounded-md p-4">
             <h3 className="text-lg font-semibold mb-3 text-gray-800">Captured Charts Preview</h3>
             <p className="text-sm text-gray-600 mb-3">
@@ -784,7 +981,7 @@ const ReportForm = () => {
             </p>
             <div className="grid grid-cols-2 gap-4">
               {chartImages.slice(0, 4).map((chart, index) => (
-                <div key={index} className="border rounded-md p-2">
+                <div key={index} className="border rounded-md p-2"> 
                   <p className="text-xs font-medium mb-1">{chart.title}</p>
                   <img 
                     src={chart.src} 
@@ -800,7 +997,7 @@ const ReportForm = () => {
               )}
             </div>
           </div>
-        )}
+        )} */}
 
         {/* ✅ Submit Button */}
         <div className="flex justify-between mt-6">

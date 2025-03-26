@@ -237,6 +237,21 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 10
   },
+  logoImage: {
+    width: 106,
+    height: 110,
+    alignSelf: 'center',
+    marginBottom: 10
+  },
+  staticImage: {
+    width: '100%',
+    maxWidth: 400,
+    height: 'auto',
+    maxHeight: 300,
+    objectFit: 'contain',
+    alignSelf: 'center',
+    marginBottom: 10
+  },
 });
 
 // Try/catch wrapper for safe text display
@@ -272,7 +287,7 @@ const ReportPDF = ({ data }) => (
         <View style={styles.tableRow}>
           <Text style={styles.col1}>
             {/* Placeholder for logo - in production, you would use a real image path */}
-            {/* <Image style={styles.image} src="/logopict.jpg" /> */}
+            <Image style={styles.logoImage} src="/pict_logo.png" />
           </Text>
           <View style={styles.col2}>
             <Text style={styles.t2}>
@@ -355,7 +370,7 @@ const ReportPDF = ({ data }) => (
         <View style={styles.tableRow}>
           <Text style={styles.col1}>
             {/* Placeholder for logo */}
-            {/* <Image style={styles.image} src="/logopict.jpg" /> */}
+            <Image style={styles.logoImage} src="/pict_logo.png" /> 
           </Text>
           <View style={styles.col2}>
             <Text style={styles.t2}>
@@ -411,18 +426,23 @@ const ReportPDF = ({ data }) => (
             </Text>
           </Text>
         </View>
+        <View style={styles.tableRow}>
+          <Text style={styles.col3}><Text style={styles.t3}></Text>
+          </Text>
+            <View style={styles.col4}>
+              <Image src="/snap1.png" style={styles.staticImage} />
+            </View>
+        </View>
       </View>
     </Page>
 
     {/* Add dynamic pages for images if available */}
-    {data.images && data.images.length > 0 && (
-      data.images.map((imageUrl, imgIndex) => (
-        <Page key={`img-page-${imgIndex}`} size="A4" style={styles.page}>
+        <Page  size="A4" style={styles.page}>
           {/* Title Section repeated for image pages */}
           <View style={styles.section}>
             <View style={styles.tableRow}>
               <Text style={styles.col1}>
-                {/* <Image style={styles.image} src="/logopict.jpg" /> */}
+                <Image style={styles.logoImage} src="/pict_logo.png" />
               </Text>
               <View style={styles.col2}>
                 <Text style={styles.t2}>
@@ -443,21 +463,21 @@ const ReportPDF = ({ data }) => (
               <View style={styles.col4}>
                 {/* Note: @react-pdf/renderer cannot display images from data URLs directly in some versions */}
                 {/* This is a placeholder - in a production app, you would save these images on a server and reference them */}
-                <Text style={styles.t3}>Image {imgIndex + 1}</Text>
+                <Image src="/snap2.png" style={styles.staticImage} />
+                <Image src="/snap3.png" style={styles.staticImage} />
                 {/* <Image style={styles.img} src={imageUrl} /> */}
               </View>
             </View>
           </View>
         </Page>
-      ))
-    )}
+
 
     {/* Add page for Roll No wise Activity Analysis */}
     <Page size="A4" style={styles.page}>
       <View style={styles.section}>
         <View style={styles.tableRow}>
           <Text style={styles.col1}>
-            {/* <Image style={styles.image} src="/logopict.jpg" /> */}
+            <Image style={styles.logoImage} src="/pict_logo.png" />
           </Text>
           <View style={styles.col2}>
             <Text style={styles.t2}>
@@ -530,7 +550,7 @@ const ReportPDF = ({ data }) => (
                 <Text style={styles.activityTableCell}>Sr. No</Text>
                 <Text style={styles.activityTableCell}>Roll No</Text>
                 <Text style={styles.activityTableCell}>Name</Text>
-                <Text style={styles.activityTableCell}>Score</Text>
+                <Text style={styles.activityTableCell}>Marks</Text>
                 <Text style={styles.activityTableLastCell}>Performance</Text>
               </View>
               
@@ -552,18 +572,12 @@ const ReportPDF = ({ data }) => (
                   </View>
                 ))
               ) : (
-                // Show placeholder data if no excel data is provided
-                Array.from({ length: 10 }, (_, i) => (
-                  <View key={i} style={styles.activityTableRow}>
-                    <Text style={styles.activityTableCell}>{i + 1}</Text>
-                    <Text style={styles.activityTableCell}>{`IT_${20000 + i}`}</Text>
-                    <Text style={styles.activityTableCell}>{`Student ${i + 1}`}</Text>
-                    <Text style={styles.activityTableCell}>{Math.floor(Math.random() * 50) + 50}</Text>
-                    <Text style={styles.activityTableLastCell}>
-                      {Math.random() > 0.5 ? 'Excellent' : (Math.random() > 0.5 ? 'Good' : 'Average')}
-                    </Text>
+                // Show a message if no excel data is provided
+                <View style={styles.activityTableRow}>
+                  <View style={{...styles.activityTableCell, flex: 5, textAlign: 'center', padding: 10}}>
+                    <Text>No student performance data available. Please upload an Excel file with student data.</Text>
                   </View>
-                ))
+                </View>
               )}
             </View>
           </View>
@@ -579,7 +593,7 @@ const ReportPDF = ({ data }) => (
           <View style={styles.section}>
             <View style={styles.tableRow}>
               <Text style={styles.col1}>
-                {/* <Image style={styles.image} src="/logopict.jpg" /> */}
+                <Image style={styles.logoImage} src="/pict_logo.png" />
               </Text>
               <View style={styles.col2}>
                 <Text style={styles.t2}>
@@ -644,7 +658,9 @@ const ReportPDF = ({ data }) => (
               <Page size="A4" style={styles.page}>
                 <View style={styles.section}>
                   <View style={styles.tableRow}>
-                    <Text style={styles.col1}></Text>
+                    <Text style={styles.col1}>
+                      <Image style={styles.logoImage} src="/pict_logo.png" />
+                    </Text>
                     <View style={styles.col2}>
                       <Text style={styles.t2}>
                         PUNE INSTITUTE OF COMPUTER TECHNOLOGY, PUNE - 411043{'\n'}
@@ -701,7 +717,9 @@ const ReportPDF = ({ data }) => (
               <Page key={`page-${i}`} size="A4" style={styles.page}>
                 <View style={styles.section}>
                   <View style={styles.tableRow}>
-                    <Text style={styles.col1}></Text>
+                    <Text style={styles.col1}>
+                      <Image style={styles.logoImage} src="/pict_logo.png" />
+                    </Text>
                     <View style={styles.col2}>
                       <Text style={styles.t2}>
                         PUNE INSTITUTE OF COMPUTER TECHNOLOGY, PUNE - 411043{'\n'}
@@ -799,7 +817,7 @@ const ReportPDF = ({ data }) => (
       <View style={styles.section}>
         <View style={styles.tableRow}>
           <Text style={styles.col1}>
-            {/* <Image style={styles.image} src="/logopict.jpg" /> */}
+            <Image style={styles.logoImage} src="/pict_logo.png" />
           </Text>
           <View style={styles.col2}>
             <Text style={styles.t2}>

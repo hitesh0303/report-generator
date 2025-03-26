@@ -79,31 +79,11 @@ const ReportPDA = () => {
 
   // Initialize dummy data for Excel and chart images
   useEffect(() => {
-    // Add dummy Excel data
-    const dummyData = Array.from({ length: 10 }, (_, i) => ({
-      'Sr No': i + 1,
-      'Roll Number': `IT_${20000 + i}`,
-      'Name': `Student ${i + 1}`,
-      'Marks': Math.floor(Math.random() * 50) + 50
-    }));
-    
-    // Add dummy chart images with titles but without real image data
-    // Since we're displaying text placeholders rather than actual images
-    const dummyChartImages = [
-      { 
-        title: "Performance Distribution",
-        // We won't use src anymore as we're showing text placeholders in the PDF
-      },
-      { 
-        title: "Topic Wise Analysis",
-        // We won't use src anymore as we're showing text placeholders in the PDF
-      }
-    ];
-    
+    // Remove the dummy data initialization to use user provided data instead
     setFormData(prevData => ({
       ...prevData,
-      excelData: dummyData,
-      chartImages: dummyChartImages
+      excelData: [], // Empty array instead of dummy data
+      chartImages: [] // Empty array instead of dummy data
     }));
   }, []);
 
@@ -131,6 +111,84 @@ const ReportPDA = () => {
         title: img.title
       }))
     });
+  };
+
+  // Parse Excel file for student performance data
+  const parseStudentExcelData = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      
+      reader.onload = (e) => {
+        try {
+          const data = e.target.result;
+          const workbook = XLSX.read(data, { type: 'binary' });
+          const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+          
+          // Validate that the Excel has the expected columns
+          if (jsonData.length > 0) {
+            const firstRow = jsonData[0];
+            const hasRequiredColumns = 
+              ('Sr No' in firstRow || 'Roll No' in firstRow || 'Roll Number' in firstRow) && 
+              ('Name' in firstRow) && 
+              ('Marks' in firstRow || 'Score' in firstRow);
+            
+            if (!hasRequiredColumns) {
+              reject(new Error('Excel file must contain "Sr No" (or "Roll No"/"Roll Number"), "Name", and "Marks" (or "Score") columns'));
+              return;
+            }
+            
+            // Normalize column names if needed
+            const normalizedData = jsonData.map((row, index) => {
+              const newRow = {};
+              newRow['Sr No'] = row['Sr No'] || row['Roll No'] || row['Roll Number'] || (index + 1);
+              newRow['Roll Number'] = row['Roll Number'] || row['Roll No'] || row['Sr No'] || `Student-${index + 1}`;
+              newRow['Name'] = row['Name'] || `Student ${index + 1}`;
+              newRow['Marks'] = row['Marks'] || row['Score'] || 0;
+              return newRow;
+            });
+            
+            resolve(normalizedData);
+          } else {
+            reject(new Error('Excel file is empty'));
+          }
+        } catch (error) {
+          console.error("Error processing student performance Excel file:", error);
+          reject(error);
+        }
+      };
+      
+      reader.onerror = (error) => {
+        console.error("Error reading file:", error);
+        reject(error);
+      };
+      
+      reader.readAsBinaryString(file);
+    });
+  };
+
+  // Handle student performance Excel file upload
+  const handleStudentDataUpload = async (e) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setStatusMessage('Processing student performance data...');
+      
+      try {
+        // Process the Excel file
+        const performanceData = await parseStudentExcelData(file);
+        setStatusMessage(`Successfully processed performance data for ${performanceData.length} students!`);
+        
+        // Update form data with student performance data
+        setFormData({
+          ...formData,
+          excelData: performanceData
+        });
+      } catch (error) {
+        console.error("Error processing student performance file:", error);
+        setStatusMessage(`Error: ${error.message}`);
+        alert("Failed to process student performance file. Please check the format and try again.");
+      }
+    }
   };
 
   // Handle Excel file upload - now just for reference, not used in UI
@@ -242,7 +300,7 @@ const ReportPDA = () => {
       for (let i = 0; i < chartItemElements.length; i++) {
         const itemElement = chartItemElements[i];
         const questionHeader = itemElement.querySelector('h4').textContent;
-        setStatusMessage(`Capturing charts for question: ${questionHeader}...`);
+        setStatusMessage(`Capturing chart ${i+1}/${chartItemElements.length}: ${questionHeader}...`);
         
         // Capture the entire chart item (both bar and pie charts together)
         try {
@@ -299,21 +357,26 @@ const ReportPDA = () => {
             type: 'combined'
           });
           
-          setStatusMessage(`Successfully captured question ${i+1}: ${questionHeader}`);
+          setStatusMessage(`Successfully captured chart ${i+1}/${chartItemElements.length}: ${questionHeader}`);
         } catch (error) {
           console.error(`Error capturing question ${i+1}:`, error);
-          setStatusMessage(`Error capturing question ${i+1}: ${error.message}`);
+          setStatusMessage(`Error capturing chart ${i+1}/${chartItemElements.length}: ${error.message}`);
         }
       }
       
-      setStatusMessage(`Successfully captured ${chartImagesArray.length} charts`);
-      setChartImages(chartImagesArray);
-      
-      // Update form data with the chart images
-      setFormData({
-        ...formData,
-        chartImages: chartImagesArray
-      });
+      // Only show success message if we actually captured some charts
+      if (chartImagesArray.length > 0) {
+        setStatusMessage(`✅ Successfully captured ${chartImagesArray.length} feedback charts!`);
+        setChartImages(chartImagesArray);
+        
+        // Update form data with the chart images
+        setFormData({
+          ...formData,
+          chartImages: chartImagesArray
+        });
+      } else {
+        setStatusMessage('No charts were captured. Please try again.');
+      }
       
       return chartImagesArray;
     } catch (error) {
@@ -342,7 +405,7 @@ const ReportPDA = () => {
     try {
       const capturedImages = await captureCharts();
       if (capturedImages && capturedImages.length > 0) {
-        setStatusMessage(`Successfully captured ${capturedImages.length} charts. Ready to generate PDF.`);
+        setStatusMessage(`Successfully captured ${capturedImages.length} feedback charts! Charts will be included in the PDF report.`);
       } else {
         setStatusMessage('No charts were captured. Please try again or check if charts are rendered.');
       }
@@ -611,9 +674,31 @@ const ReportPDA = () => {
           </div>
         )}
 
-        {/* Status Messages */}
+        {/* Status Messages with improved styling based on message content */}
         {statusMessage && (
-          <div className="mb-4 p-3 bg-blue-100 text-blue-700 border border-blue-200 rounded flex items-center">
+          <div className={`mb-4 p-3 rounded-md shadow-sm flex items-center ${
+            statusMessage.includes('Successfully') || statusMessage.includes('✅') 
+              ? 'bg-green-100 text-green-700 border border-green-300'
+              : statusMessage.includes('Error') || statusMessage.includes('No charts')
+                ? 'bg-red-100 text-red-700 border border-red-300'
+                : statusMessage.includes('Starting') || statusMessage.includes('Capturing') || statusMessage.includes('Found')
+                  ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                  : 'bg-gray-100 text-gray-700 border border-gray-300'
+          }`}>
+            {statusMessage.includes('Successfully') || statusMessage.includes('✅') ? (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+            ) : statusMessage.includes('Error') || statusMessage.includes('No charts') ? (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" className="animate-spin h-5 w-5 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            )}
             <span>{statusMessage}</span>
           </div>
         )}
@@ -943,6 +1028,78 @@ const ReportPDA = () => {
           </button>
         </div>
 
+        {/* Student Performance Excel Upload Section */}
+        <div className="mb-6">
+          <h3 className="text-xl font-semibold mb-3 text-gray-700 border-b pb-2">Student Performance Data</h3>
+          <p className="text-gray-600 mb-3">
+            Upload an Excel file containing student performance data. The file should have columns for Roll Number, Name, and Marks/Score.
+          </p>
+          
+          {/* Student performance file input */}
+          <input 
+            type="file" 
+            id="studentDataInput"
+            onChange={handleStudentDataUpload}
+            className="hidden" 
+            accept=".xlsx,.xls"
+            ref={(el) => excelInputRef.current = el}
+          />
+          
+          {/* Custom upload button */}
+          <button
+            type="button"
+            onClick={() => excelInputRef.current && excelInputRef.current.click()}
+            className="mb-4 flex items-center p-3 border-2 border-dashed border-purple-300 rounded-md text-purple-500 hover:text-purple-700 hover:border-purple-500"
+          >
+            <FaFileExcel className="mr-2" /> Upload Student Performance Excel
+          </button>
+          
+          {formData.excelData && formData.excelData.length > 0 && (
+            <div className="mt-2">
+              <div className="p-3 bg-purple-50 text-purple-700 border border-purple-200 rounded flex items-center mb-2">
+                <FaFileExcel className="mr-2" /> 
+                <span className="font-medium">Student performance data loaded for {formData.excelData.length} students</span>
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({...prev, excelData: []}))}
+                  className="ml-auto text-red-500 hover:text-red-700"
+                >
+                  <FaTrash />
+                </button>
+              </div>
+              
+              {/* Preview of student performance data */}
+              <div className="max-h-48 overflow-y-auto border border-gray-200 rounded">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sr No</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Roll Number</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Marks</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {formData.excelData.slice(0, 5).map((student, index) => (
+                      <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <td className="px-6 py-2 whitespace-nowrap text-sm font-medium text-gray-900">{student['Sr No']}</td>
+                        <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-500">{student['Roll Number']}</td>
+                        <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-500">{student['Name']}</td>
+                        <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-500">{student['Marks']}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {formData.excelData.length > 5 && (
+                  <div className="px-6 py-2 text-center text-sm text-gray-500">
+                    {formData.excelData.length - 5} more records not shown
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Feedback Excel Upload Section */}
         <div className="mb-6">
           <h3 className="text-xl font-semibold mb-3 text-gray-700 border-b pb-2">Feedback Data Analysis</h3>
@@ -1008,14 +1165,40 @@ const ReportPDA = () => {
               <button
                 type="button"
                 onClick={handleManualCaptureCharts}
-                className="px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600"
+                className={`px-3 py-1 ${
+                  chartData.length > 0 && (!chartImages || chartImages.length === 0)
+                    ? "bg-green-500 text-white font-medium text-sm rounded hover:bg-green-600 animate-pulse transition-all duration-300 transform hover:scale-105 shadow-md"
+                    : "bg-blue-500 text-white text-sm rounded hover:bg-blue-600"
+                } flex items-center`}
               >
-                Capture Charts Manually
+                {chartData.length > 0 && (!chartImages || chartImages.length === 0) ? (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    Capture Charts (Required)
+                  </>
+                ) : (
+                  <>Capture Charts Manually</>
+                )}
               </button>
             </div>
             
             <div ref={chartsContainerRef} id="chart-container" className="p-4 border border-gray-300 rounded-md">
               <FeedbackCharts chartsData={chartData} />
+              
+              {/* Success message for captured charts */}
+              {chartImages && chartImages.length > 0 && (
+                <div className="mt-4 p-3 bg-green-100 text-green-700 border border-green-300 rounded-md shadow-sm">
+                  <div className="flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    <span className="font-medium">Successfully captured {chartImages.length} feedback charts!</span>
+                  </div>
+                  <p className="text-sm mt-1 ml-7">Charts will be included in the PDF report. You can now download the PDF or save the report.</p>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1095,9 +1278,13 @@ const ReportPDA = () => {
             >
               <button
                 type="button"
-                disabled={isGeneratingPDF}
+                disabled={isGeneratingPDF || (chartData.length > 0 && (!chartImages || chartImages.length === 0))}
                 onClick={handleGeneratePDF}
-                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition duration-300 flex items-center"
+                className={`${
+                  chartData.length > 0 && (!chartImages || chartImages.length === 0)
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-red-600 hover:bg-red-700"
+                } text-white px-4 py-2 rounded-lg transition duration-300 flex items-center relative group`}
               >
                 {isGeneratingPDF ? (
                   <span className="flex items-center">
@@ -1109,6 +1296,11 @@ const ReportPDA = () => {
                   </span>
                 ) : (
                   <><FaFilePdf className="mr-2" /> Download PDF</>
+                )}
+                {chartData.length > 0 && (!chartImages || chartImages.length === 0) && (
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 p-2 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-center pointer-events-none">
+                    Please capture charts first by clicking the "Capture Charts Manually" button
+                  </div>
                 )}
               </button>
             </ErrorBoundary>
