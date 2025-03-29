@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import axios from "axios";
 import { FaUser, FaEnvelope, FaLock, FaUserPlus, FaSignInAlt } from "react-icons/fa";
+import { apiService } from "../utils/axiosConfig";
 
 const AuthenticationPage = () => {
   const [isSignup, setIsSignup] = useState(false);
@@ -12,119 +13,223 @@ const AuthenticationPage = () => {
     password: "",
     confirmPassword: "",
   });
+  const [errorMessage, setErrorMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { login } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setErrorMessage("");
+    
     if (isSignup && formData.password !== formData.confirmPassword) {
-      alert("Passwords do not match!");
+      setErrorMessage("Passwords do not match!");
       return;
     }
 
-    const endpoint = isSignup ? "/api/register" : "/api/login";
     try {
-      const { data } = await axios.post(`http://localhost:8000${endpoint}`, formData);
-      if (!isSignup) {
-        localStorage.setItem('token', data.token);
-        login(data.token);
-        alert("Login successful!");
-        navigate("/dashboard");
-      } else {
+      setIsLoading(true);
+      
+      if (isSignup) {
+        // Use direct axios call for registration since we don't have a method for it yet
+        await axios.post(`http://localhost:8000/api/register`, formData);
+        setErrorMessage("");
         alert("Signup successful! Please login.");
         setIsSignup(false);
+      } else {
+        // Use our API service for login
+        const data = await apiService.login(formData);
+        
+        if (data.token) {
+          localStorage.setItem('token', data.token);
+          login(data.token);
+          
+          // Debug token information
+          console.log("Login successful. Token received and stored.");
+          
+          // Redirect to dashboard
+          navigate("/dashboard");
+        } else {
+          setErrorMessage("Login failed: No token received from server");
+        }
       }
     } catch (error) {
-      alert("Authentication failed");
+      console.error("Authentication error:", error);
+      
+      if (error.response) {
+        // The server responded with an error status code
+        if (error.response.status === 400) {
+          setErrorMessage("Invalid credentials. Please check your email and password.");
+        } else if (error.response.status === 401 || error.response.status === 403) {
+          setErrorMessage("Unauthorized. Please check your credentials.");
+        } else if (error.response.status === 404) {
+          setErrorMessage("Server endpoint not found. Please contact support.");
+        } else if (error.response.status >= 500) {
+          setErrorMessage("Server error. Please try again later.");
+        } else {
+          setErrorMessage(`Authentication failed: ${error.response.data.message || error.message}`);
+        }
+      } else if (error.request) {
+        // The request was made but no response was received
+        setErrorMessage("No response from server. Please check your connection.");
+      } else {
+        // Something else happened in setting up the request
+        setErrorMessage(`Error: ${error.message}`);
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
+  };
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center">
-          
-      {isSignup ? <h1 className="text-4xl font-extrabold text-gray-800 text-center mb-8">Sign Up</h1> :
-      <h1 className="text-4xl font-extrabold text-gray-800 text-center mb-8">Login Page</h1>}
-      
-      <div className="bg-white p-10 shadow-2xl rounded-lg w-full max-w-md transform transition duration-500 hover:scale-105">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {isSignup && (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-xl shadow-lg">
+        <div>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+            {isSignup ? "Create an account" : "Sign in to your account"}
+          </h2>
+        </div>
+        
+        {errorMessage && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+            <span className="block sm:inline">{errorMessage}</span>
+          </div>
+        )}
+        
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          <input type="hidden" name="remember" value="true" />
+          <div className="rounded-md shadow-sm -space-y-px">
+            {isSignup && (
+              <div>
+                <label htmlFor="fullName" className="sr-only">
+                  Full Name
+                </label>
+                <div className="flex items-center relative">
+                  <span className="absolute left-3 text-gray-400">
+                    <FaUser />
+                  </span>
+                  <input
+                    id="fullName"
+                    name="fullName"
+                    type="text"
+                    required={isSignup}
+                    className="appearance-none rounded-none relative block w-full px-10 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                    placeholder="Full Name"
+                    value={formData.fullName}
+                    onChange={handleChange}
+                  />
+                </div>
+              </div>
+            )}
             <div>
-              <label className="block font-semibold text-gray-800">Full Name</label>
-              <div className="relative">
-                <FaUser className="absolute left-3 top-4 text-gray-500" />
+              <label htmlFor="email" className="sr-only">
+                Email address
+              </label>
+              <div className="flex items-center relative">
+                <span className="absolute left-3 text-gray-400">
+                  <FaEnvelope />
+                </span>
                 <input
-                  type="text"
-                  placeholder="Enter your full name"
-                  className="pl-10 w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                  required={isSignup}
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  className={`appearance-none rounded-none relative block w-full px-10 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 ${
+                    isSignup ? "" : "rounded-t-md"
+                  } focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm`}
+                  placeholder="Email address"
+                  value={formData.email}
+                  onChange={handleChange}
                 />
               </div>
             </div>
-          )}
-
-          <div>
-            <label className="block font-semibold text-gray-800">Email Address</label>
-            <div className="relative">
-              <FaEnvelope className="absolute left-3 top-4 text-gray-500" />
-              <input
-                type="email"
-                placeholder="Enter your email"
-                className="pl-10 w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                required
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block font-semibold text-gray-800">Password</label>
-            <div className="relative">
-              <FaLock className="absolute left-3 top-4 text-gray-500" />
-              <input
-                type="password"
-                placeholder="Create a password"
-                className="pl-10 w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                required
-              />
-            </div>
-          </div>
-
-          {isSignup && (
             <div>
-              <label className="block font-semibold text-gray-800">Confirm Password</label>
-              <div className="relative">
-                <FaLock className="absolute left-3 top-4 text-gray-500" />
+              <label htmlFor="password" className="sr-only">
+                Password
+              </label>
+              <div className="flex items-center relative">
+                <span className="absolute left-3 text-gray-400">
+                  <FaLock />
+                </span>
                 <input
+                  id="password"
+                  name="password"
                   type="password"
-                  placeholder="Confirm your password"
-                  className="pl-10 w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                  required={isSignup}
+                  autoComplete="current-password"
+                  required
+                  className={`appearance-none rounded-none relative block w-full px-10 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 ${
+                    isSignup ? "" : "rounded-b-md"
+                  } focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm`}
+                  placeholder="Password"
+                  value={formData.password}
+                  onChange={handleChange}
                 />
               </div>
             </div>
-          )}
+            {isSignup && (
+              <div>
+                <label htmlFor="confirmPassword" className="sr-only">
+                  Confirm Password
+                </label>
+                <div className="flex items-center relative">
+                  <span className="absolute left-3 text-gray-400">
+                    <FaLock />
+                  </span>
+                  <input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type="password"
+                    required={isSignup}
+                    className="appearance-none rounded-none relative block w-full px-10 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                    placeholder="Confirm Password"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
 
-          <button
-            type="submit"
-            className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white p-3 rounded-lg text-lg font-semibold hover:bg-blue-700 transition duration-300 ease-in-out transform hover:scale-105"
-          >
-            {isSignup ? <FaUserPlus /> : <FaSignInAlt />}
-            {isSignup ? "Create Account" : "Sign In"}
-          </button>
+          <div>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className={`group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white ${
+                isLoading ? "bg-indigo-400" : "bg-indigo-600 hover:bg-indigo-700"
+              } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500`}
+            >
+              <span className="absolute left-0 inset-y-0 flex items-center pl-3">
+                {isSignup ? <FaUserPlus /> : <FaSignInAlt />}
+              </span>
+              {isLoading ? "Processing..." : isSignup ? "Sign up" : "Sign in"}
+            </button>
+          </div>
+
+          <div className="flex items-center justify-center">
+            <div className="text-sm">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSignup(!isSignup);
+                  setErrorMessage("");
+                }}
+                className="font-medium text-indigo-600 hover:text-indigo-500"
+              >
+                {isSignup
+                  ? "Already have an account? Sign in"
+                  : "Don't have an account? Sign up"}
+              </button>
+            </div>
+          </div>
         </form>
-
-        <p className="text-center text-sm text-gray-600 mt-6">
-          {isSignup ? "Already have an account?" : "Don't have an account?"}{" "}
-          <button
-            className="text-blue-500 hover:underline"
-            onClick={() => setIsSignup(!isSignup)}
-          >
-            {isSignup ? "Sign in" : "Sign up"}
-          </button>
-        </p>
       </div>
     </div>
   );

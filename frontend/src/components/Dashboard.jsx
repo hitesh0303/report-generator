@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import { FaPlus, FaHistory, FaChartBar } from 'react-icons/fa';
+import { FaPlus, FaHistory, FaChartBar, FaUserTie } from 'react-icons/fa';
 
 const Dashboard = () => {
   const [reports, setReports] = useState([]);
@@ -40,6 +40,12 @@ const Dashboard = () => {
           <FaChartBar className="mr-2" /> Create PDA Report
         </Link>
         <Link 
+          to="/create-expert-report" 
+          className="flex items-center px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition duration-300 ease-in-out transform hover:scale-105 w-fit"
+        >
+          <FaUserTie className="mr-2" /> Create Expert Report
+        </Link>
+        <Link 
           to="/previous-reports" 
           className="flex items-center px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-300 ease-in-out transform hover:scale-105 w-fit"
         >
@@ -55,12 +61,27 @@ const Dashboard = () => {
           <ul className="space-y-3">
             {reports.slice(0, 4).map(report => (
               <li key={report._id} className="bg-white border p-4 rounded-lg shadow-md hover:shadow-lg transition duration-300">
-                <Link to={`/view-report/${report._id}`} className="text-blue-600 hover:text-blue-800 font-medium">
-                  {report.title}
-                </Link>
-                <p className="text-sm text-gray-500 mt-1">
-                  {report.subjectName} • {report.date}
-                </p>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <Link to={`/view-report/${report._id}`} className="text-blue-600 hover:text-blue-800 font-medium">
+                      {report.title}
+                    </Link>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {report.subjectName ? `${report.subjectName} • ` : ''}{report.date || report.eventDate}
+                    </p>
+                  </div>
+                  <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                    report.reportType === 'teaching' ? 'bg-blue-100 text-blue-800' : 
+                    report.reportType === 'pda' ? 'bg-purple-100 text-purple-800' : 
+                    report.reportType === 'expert' ? 'bg-orange-100 text-orange-800' : 
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {report.reportType === 'teaching' ? 'Teaching' : 
+                     report.reportType === 'pda' ? 'PDA' : 
+                     report.reportType === 'expert' ? 'Expert' : 
+                     'Report'}
+                  </span>
+                </div>
               </li>
             ))}
             {reports.length > 5 && (

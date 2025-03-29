@@ -1,6 +1,6 @@
 // src/components/ReportForm.jsx
 import React, { useState, useRef, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from 'react-router-dom';
 import axios from "axios";
 import { saveAs } from "file-saver";
 import { Document, Packer, Paragraph, TextRun } from "docx";
@@ -36,7 +36,8 @@ const ReportForm = () => {
     },
     feedbackData: [], // Store processed feedback data
     chartImages: [], // Store base64 images of charts
-    excelData: [] // Store student performance data
+    excelData: [], // Store student performance data
+    extraSections: [] // Initialize extraSections as an empty array
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -123,27 +124,84 @@ const ReportForm = () => {
     }
   };
 
-  // Handle image upload
-  const handleImageUpload = (e) => {
-    const files = Array.from(e.target.files);
-    const newImageFiles = [...imageFiles];
-    
-    files.forEach(file => {
-      // Create a preview URL for the image
-      const imageUrl = URL.createObjectURL(file);
-      newImageFiles.push({
-        file,
-        preview: imageUrl
-      });
-    });
-    
-    setImageFiles(newImageFiles);
-    
-    // Also update formData with the image files for PDF generation
-    setFormData({
-      ...formData,
-      images: newImageFiles.map(img => img.preview)
-    });
+  //image upload to cloudinary
+  const uploadImagesToCloudinary = async (e) => {
+    // Only process file selection events from file input
+    if (e && e.target && e.target.files) {
+      const files = Array.from(e.target.files);
+      if (files.length === 0) return;
+      
+      // Show uploading status
+      setStatusMessage(`Uploading ${files.length} image(s) to Cloudinary...`);
+      
+      const newImageFiles = [];
+      const uploadedCloudinaryUrls = [];
+      const cloudinaryUploadUrl = "https://api.cloudinary.com/v1_1/darnokazg/image/upload";
+      const cloudinaryUploadPreset = "report_generator";
+      
+      // Upload each file to Cloudinary immediately
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        try {
+          // Create a preview URL for the local image display
+          const imagePreview = URL.createObjectURL(file);
+          
+          // Create FormData for Cloudinary upload
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("upload_preset", cloudinaryUploadPreset);
+          formData.append("folder", "report_images");
+          
+          // Upload to Cloudinary
+          setStatusMessage(`Uploading image ${i + 1} of ${files.length}...`);
+          const response = await axios.post(cloudinaryUploadUrl, formData);
+          
+          // Store both the preview and the Cloudinary URL
+          const cloudinaryUrl = response.data.secure_url;
+          uploadedCloudinaryUrls.push(cloudinaryUrl);
+          
+          newImageFiles.push({
+            file,                 // Original file (for reference)
+            preview: imagePreview, // Local preview URL
+            cloudinaryUrl         // The Cloudinary URL for final PDF
+          });
+          
+          setStatusMessage(`Uploaded ${i + 1} of ${files.length} images...`);
+        } catch (error) {
+          console.error("Error uploading image to Cloudinary:", error);
+          setStatusMessage(`Error uploading image ${i + 1}: ${error.message}`);
+          
+          // Still add the file with local preview but mark as failed upload
+          const imagePreview = URL.createObjectURL(file);
+          newImageFiles.push({
+            file,
+            preview: imagePreview,
+            uploadFailed: true
+          });
+        }
+      }
+      
+      // Update state with new images that include both preview and Cloudinary URLs
+      setImageFiles(prevImages => [...prevImages, ...newImageFiles]);
+      
+      // Update formData.images with the Cloudinary URLs
+      setFormData(prevFormData => ({
+        ...prevFormData,
+        images: [...(prevFormData.images || []), ...uploadedCloudinaryUrls]
+      }));
+      
+      // Clear the file input to allow selecting the same files again
+      e.target.value = null;
+      
+      // Show success message
+      setStatusMessage(uploadedCloudinaryUrls.length > 0 
+        ? `Successfully uploaded ${uploadedCloudinaryUrls.length} image(s) to Cloudinary!` 
+        : 'No images were uploaded successfully. You can try again.');
+      
+      // Clear the status message after 3 seconds
+      setTimeout(() => setStatusMessage(""), 3000);
+    }
   };
 
   // Parse Student Excel Data
@@ -398,7 +456,9 @@ const ReportForm = () => {
     const newImageFiles = [...imageFiles];
     
     // Revoke the object URL to prevent memory leaks
-    URL.revokeObjectURL(newImageFiles[index].preview);
+    if (newImageFiles[index] && newImageFiles[index].preview) {
+      URL.revokeObjectURL(newImageFiles[index].preview);
+    }
     
     newImageFiles.splice(index, 1);
     setImageFiles(newImageFiles);
@@ -425,16 +485,18 @@ const ReportForm = () => {
       }
       
       // Create a copy of formData with reportType and latest chartImages added
+      // No need to re-upload images to Cloudinary since they're already uploaded
       const reportDataToSave = {
         ...formData,
-        chartImages: chartImages, // Ensure latest chart images are included
-        feedbackData: formData.feedbackData, // Include the feedback data for the PDF
-        excelData: formData.excelData, // Include student performance data
-        reportType: 'teaching' // Mark this as a teaching report
+        chartImages: chartImages, // Use local base64 images for charts
+        feedbackData: formData.feedbackData,
+        excelData: formData.excelData,
+        reportType: 'teaching'
       };
       
       console.log("Saving report with chart images:", reportDataToSave.chartImages?.length);
       console.log("Saving report with student data:", reportDataToSave.excelData?.length);
+      console.log("Saving report with image URLs:", reportDataToSave.images?.length);
       
       const response = await axios.post("http://localhost:8000/api/reports", reportDataToSave, {
         headers: { Authorization: `Bearer ${token}` },
@@ -445,12 +507,11 @@ const ReportForm = () => {
       // Show success message
       setSaveSuccess(true);
       
-      // Hide success message after 3 seconds
+      // Hide success message after 5 seconds
       setTimeout(() => {
         setSaveSuccess(false);
-      }, 3000);
+      }, 5000);
       
-      // The PDF will be generated through the PDFDownloadLink in the UI
     } catch (error) {
       console.error("Error creating report:", error);
       let errorMessage = "Failed to save report.";
@@ -472,7 +533,9 @@ const ReportForm = () => {
     if (window.confirm("Are you sure you want to reset the form? All entered data will be lost.")) {
       // Clean up any object URLs to prevent memory leaks
       imageFiles.forEach(img => {
-        URL.revokeObjectURL(img.preview);
+        if (img && img.preview) {
+          URL.revokeObjectURL(img.preview);
+        }
       });
       
       setImageFiles([]);
@@ -483,7 +546,7 @@ const ReportForm = () => {
     }
   };
 
-  // Modify the handleGeneratePDF function to ensure charts are captured first
+  // Generate PDF using already uploaded Cloudinary URLs
   const handleGeneratePDF = async () => {
     try {
       setDownloadStatus("Preparing PDF...");
@@ -495,18 +558,67 @@ const ReportForm = () => {
         await captureCharts();
       }
       
-      // Update form data with chart images before generating PDF
-      setFormData(prevData => ({
-        ...prevData,
-        chartImages: chartImages
-      }));
+      // No need to re-upload images to Cloudinary, they're already uploaded when the user selected them
+      // Just check if we have any failed uploads that need to be retried
+      const failedUploads = imageFiles.filter(img => img.uploadFailed);
+      
+      if (failedUploads.length > 0) {
+        setDownloadStatus(`Retrying upload for ${failedUploads.length} failed image(s)...`);
+        
+        const cloudinaryUploadUrl = "https://api.cloudinary.com/v1_1/darnokazg/image/upload";
+        const cloudinaryUploadPreset = "report_generator";
+        
+        // Only retry uploads for images that failed previously
+        for (let i = 0; i < failedUploads.length; i++) {
+          const imageItem = failedUploads[i];
+          const file = imageItem.file;
+          
+          if (!file) {
+            console.error("No file found in failed upload item:", imageItem);
+            continue;
+          }
+          
+          try {
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("upload_preset", cloudinaryUploadPreset);
+            formData.append("folder", "report_images");
+            
+            setDownloadStatus(`Retrying upload ${i + 1} of ${failedUploads.length}...`);
+            const response = await axios.post(cloudinaryUploadUrl, formData);
+            
+            // Update the image file entry
+            const index = imageFiles.findIndex(img => img === imageItem);
+            if (index !== -1) {
+              const newImageFiles = [...imageFiles];
+              newImageFiles[index] = {
+                ...imageItem,
+                cloudinaryUrl: response.data.secure_url,
+                uploadFailed: false
+              };
+              setImageFiles(newImageFiles);
+              
+              // Also update formData.images
+              const newImages = [...formData.images];
+              newImages.push(response.data.secure_url);
+              setFormData(prev => ({...prev, images: newImages}));
+            }
+          } catch (error) {
+            console.error("Error retrying image upload:", error);
+            setDownloadStatus(`Error retrying upload: ${error.message}`);
+          }
+        }
+      }
+      
+      // Create final PDF data with all the information needed
+      const pdfData = {
+        ...formData,
+        chartImages: chartImages,
+        excelData: formData.excelData
+      };
       
       setDownloadStatus("Generating PDF...");
-      const blob = await pdf(<ReportPDF data={{
-        ...formData, 
-        chartImages,
-        excelData: formData.excelData // Ensure student data is included in PDF
-      }} />).toBlob();
+      const blob = await pdf(<ReportPDF data={pdfData} />).toBlob();
       saveAs(blob, `${formData.title.replace(/\s+/g, "_")}_Report.pdf`);
       setDownloadStatus("PDF downloaded successfully!");
       setTimeout(() => setDownloadStatus(""), 2000);
@@ -519,12 +631,6 @@ const ReportForm = () => {
 
   return (
     <div className="max-w-6xl mx-auto p-8">
-      <div className="flex items-center mb-6">
-        <Link to="/dashboard" className="flex items-center text-blue-600 hover:text-blue-800 mb-4">
-          <FaArrowLeft className="mr-2" /> Back to Dashboard
-        </Link>
-      </div>
-      
       <form onSubmit={handleSubmit} className="bg-white p-8 rounded-lg shadow-lg transform transition duration-500 hover:scale-102">
         <h2 className="text-2xl font-bold mb-6 text-gray-800">Create New Quiz Report</h2>
         
@@ -640,46 +746,46 @@ const ReportForm = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Total Students in Class
               </label>
-              <input
-                type="number"
+          <input
+            type="number"
                 className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={formData.participationData.totalStudents}
+            value={formData.participationData.totalStudents}
                 onChange={(e) => setFormData({
-                  ...formData, 
+                ...formData,
                   participationData: {
                     ...formData.participationData,
                     totalStudents: e.target.value
-                  }
+            }
                 })}
-              />
+          />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Material Provided To
               </label>
-              <input
-                type="number"
+          <input
+            type="number"
                 className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={formData.participationData.materialProvidedTo}
                 onChange={(e) => setFormData({
-                  ...formData, 
+                ...formData,
                   participationData: {
                     ...formData.participationData,
                     materialProvidedTo: e.target.value
-                  }
+            }
                 })}
-              />
+          />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Students Participated
               </label>
-              <input
-                type="number"
+          <input
+            type="number"
                 className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={formData.participationData.studentsParticipated}
                 onChange={(e) => setFormData({
-                  ...formData, 
+                ...formData,
                   participationData: {
                     ...formData.participationData,
                     studentsParticipated: e.target.value
@@ -731,6 +837,7 @@ const ReportForm = () => {
                 </span>
               )}
             </div>
+
             {statusMessage && statusMessage.includes("student performance") && (
               <p className={`mt-2 text-sm ${statusMessage.includes("Error") ? "text-red-600" : "text-green-600"}`}>
                 {statusMessage}
@@ -846,6 +953,8 @@ const ReportForm = () => {
           />
         </div>
 
+            
+
         {/* Snapshot Images Section */}
         <div className="mb-6">
           <label className="block font-bold text-gray-800 mb-2">Snapshots: About event conduction/live session</label>
@@ -854,7 +963,7 @@ const ReportForm = () => {
           <input 
             type="file" 
             ref={fileInputRef}
-            onChange={handleImageUpload}
+            onChange={uploadImagesToCloudinary}
             className="hidden"
             accept="image/*"
             multiple
@@ -865,8 +974,21 @@ const ReportForm = () => {
             type="button"
             onClick={() => fileInputRef.current.click()}
             className="mb-4 flex items-center p-3 border-2 border-dashed border-blue-300 rounded-md text-blue-500 hover:text-blue-700 hover:border-blue-500"
+            disabled={statusMessage && statusMessage.includes('Uploading')}
           >
-            <FaUpload className="mr-2" /> Upload Event Snapshots
+            {statusMessage && statusMessage.includes('Uploading') ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Uploading to Cloudinary...
+              </>
+            ) : (
+              <>
+                <FaUpload className="mr-2" /> Upload Event Snapshots
+              </>
+            )}
           </button>
           
           {/* Image preview section */}
@@ -888,6 +1010,64 @@ const ReportForm = () => {
           )}
         </div>
 
+    <div className="mb-6">
+      <label className="block font-bold text-gray-800 mb-2">Add Section:</label>
+        {formData.extraSections && formData.extraSections.map((section, index) => (
+      <div key={index} className="mb-6 border p-4 rounded-lg bg-white shadow-sm">
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="text-lg font-semibold">Additional Section {index + 1}</h3>
+          <button 
+            type="button"
+            className="text-red-600 hover:text-red-800"
+            onClick={() => {
+              const newSections = [...formData.extraSections];
+              newSections.splice(index, 1);
+              setFormData(prev => ({...prev, extraSections: newSections}));
+            }}
+          >
+            <FaTrash />
+          </button>
+        </div>
+        <input
+          type="text"
+          placeholder="Section Title"
+          value={section.title}
+          className="block w-full p-3 mb-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          onChange={(e) =>
+            setFormData((prevData) => {
+              const updatedSections = [...prevData.extraSections];
+              updatedSections[index].title = e.target.value;
+              return { ...prevData, extraSections: updatedSections };
+            })
+          }
+        />
+        <textarea
+          placeholder="Section Description"
+          value={section.description}
+          className="block w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[100px]"
+          onChange={(e) =>
+            setFormData((prevData) => {
+              const updatedSections = [...prevData.extraSections];
+              updatedSections[index].description = e.target.value;
+              return { ...prevData, extraSections: updatedSections };
+            })
+          }
+        />
+      </div>
+    ))}
+    <button 
+      type="button" 
+      className="mb-6 flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-300"
+      onClick={() =>
+        setFormData((prevData) => ({
+          ...prevData,
+          extraSections: [...(prevData.extraSections || []), { title: "", description: "" }]
+        }))
+      }
+    >
+      <span className="mr-1">+</span> Add Section
+    </button>
+    </div>
         {/* Feedback Excel Upload Section */}
         <div className="mb-6">
           <label className="block font-bold text-gray-800 mb-2">Feedback Data Analysis:</label>
@@ -1001,13 +1181,7 @@ const ReportForm = () => {
 
         {/* ✅ Submit Button */}
         <div className="flex justify-between mt-6">
-          <div className="flex space-x-3">
-            <Link 
-              to="/dashboard" 
-              className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition duration-300"
-            >
-              Cancel
-            </Link>
+          <div>
             <button 
               type="button" 
               onClick={handleReset}
@@ -1052,6 +1226,19 @@ const ReportForm = () => {
         </button>
           </div>
         </div>
+        
+        {/* Success message at the bottom of the form - similar to Expert Report */}
+        {saveSuccess && (
+          <div className="mt-6 p-4 bg-green-100 text-green-700 border border-green-300 rounded-md shadow-sm">
+            <div className="flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              <span className="font-medium">Teaching Report saved successfully!</span>
+            </div>
+            <p className="text-sm mt-1 ml-7">Your report has been saved. You can view it in the Previous Reports section or continue editing.</p>
+          </div>
+        )}
       </form>
     </div>
   );

@@ -3,6 +3,7 @@ import { Page, Text, View, Document, StyleSheet, Image } from '@react-pdf/render
 // Import our static images
 import { pictLogo, pdaLogo, pdafront, certificateTemplate, teamPhotoPlaceholder, winnerPhotoPlaceholder } from '../assets/pda/logo.js';
 
+// Add styles for image gallery
 const styles = StyleSheet.create({
     page: { 
         padding: 20, 
@@ -27,10 +28,10 @@ const styles = StyleSheet.create({
         width: '100%',
         maxWidth: 400,
         height: 'auto',
-        maxHeight: 300,
+        maxHeight: 260,
         objectFit: 'contain',
         alignSelf: 'center',
-        marginBottom: 10
+        marginBottom: 5
     },
     staticImage1: {
         width: '100%',
@@ -51,12 +52,13 @@ const styles = StyleSheet.create({
         flexDirection: 'row', 
         flexWrap: 'wrap', 
         justifyContent: 'center', 
-        gap: 25 
+        gap: 25,
+        marginBottom: 36
     },
     chartItem: {
         width: '45%',   // Ensures two columns
         textAlign: 'center',
-        marginBottom: 15
+        marginBottom: 20
     },
     chartTitle: {
         fontSize: 12,
@@ -127,7 +129,8 @@ const styles = StyleSheet.create({
         maxHeight: 550, 
         objectFit: 'contain',
         marginVertical: 5,
-        alignSelf: "center"
+        alignSelf: "center",
+        marginBottom: 15
     },
     t1: { fontSize: 15, textAlign: 'center', marginBottom: 10, color: "red" },
     header: { textAlign: 'center', fontSize: 16, marginBottom: 10 },
@@ -157,6 +160,113 @@ const styles = StyleSheet.create({
     boldText: { fontSize: 13 },
     list: { marginTop: 5, paddingLeft: 20, fontSize: 13 },
     line: { borderBottomWidth: 1, borderBottomColor: '#000', width: '100%', marginVertical: 10 },
+    // Add new styles for image galleries
+    imageGallery: {
+        display: 'flex',
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
+        gap: 10,
+        marginVertical: 10
+    },
+    galleryImage: {
+        width: '45%',
+        height: 150,
+        objectFit: 'contain',
+        margin: 5
+    },
+    sectionTitle: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        marginBottom: 8,
+        textAlign: 'center'
+    },
+    // Add new styles for enhanced statistics
+    statsContainer: {
+        marginTop: 15,
+        marginBottom: 10,
+    },
+    statsTitle: {
+        fontSize: 15,
+        fontWeight: 'bold',
+        textAlign: 'center',
+        marginBottom: 10,
+        paddingBottom: 5,
+        borderBottomWidth: 1,
+        borderBottomColor: '#333',
+    },
+    statsGrid: {
+        display: 'flex',
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+        marginTop: 10,
+        gap: 10,
+    },
+    statCard: {
+        width: '48%',
+        padding: 10,
+        marginBottom: 10,
+        borderWidth: 1,
+        borderRadius: 5,
+        borderColor: '#ccc',
+        backgroundColor: '#f9f9f9',
+    },
+    statCardTitle: {
+        fontSize: 12,
+        color: '#555',
+        marginBottom: 5,
+    },
+    statCardValue: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#333',
+    },
+    gradeDistribution: {
+        marginTop: 15,
+        width: '100%',
+    },
+    gradeRow: {
+        flexDirection: 'row',
+        marginBottom: 5,
+        alignItems: 'center',
+    },
+    gradeLabel: {
+        width: 100,
+        fontSize: 12,
+    },
+    gradeBar: {
+        height: 15,
+        backgroundColor: '#4a90e2',
+        borderRadius: 2,
+    },
+    gradeValue: {
+        marginLeft: 10,
+        fontSize: 12,
+        width: 50,
+        textAlign: 'right',
+    },
+    passFailContainer: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        marginTop: 15,
+        marginBottom: 10,
+    },
+    passFailStat: {
+        width: '48%',
+        padding: 10,
+        borderWidth: 1,
+        borderRadius: 5,
+        textAlign: 'center',
+    },
+    passRate: {
+        borderColor: '#4caf50',
+        backgroundColor: '#e8f5e9',
+    },
+    failRate: {
+        borderColor: '#f44336',
+        backgroundColor: '#ffebee',
+    },
 });
 
 // Default faculty and students data
@@ -186,29 +296,95 @@ const SafeText = ({ style, children }) => {
 // Safe Image component to handle image loading errors
 const SafeImage = ({ src, style, fallbackSrc }) => {
     try {
-        return <Image src={src} style={style} />;
-    } catch (error) {
-        console.error("Error rendering image:", error);
-        // If fallback is provided and primary source fails, try fallback
-        if (fallbackSrc) {
-            try {
-                return <Image src={fallbackSrc} style={style} />;
-            } catch (secondError) {
-                console.error("Error rendering fallback image:", secondError);
-                return (
-                    <View style={[style, { backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center' }]}>
-                        <Text style={{ fontSize: 10, textAlign: 'center' }}>Image not available</Text>
-                    </View>
-                );
+        // Handle base64 image data (for charts)
+        if (typeof src === 'string' && src.startsWith('data:image/')) {
+            return <Image src={src} style={style} />;
+        }
+        
+        // Handle Cloudinary URLs directly
+        if (typeof src === 'string' && (
+            src.includes('cloudinary.com') || 
+            src.startsWith('http') || 
+            src.startsWith('/')
+        )) {
+            return <Image src={src} style={style} />;
+        }
+        
+        // Handle objects with src property (our chart image format)
+        if (src && typeof src === 'object' && src.src) {
+            if (typeof src.src === 'string') {
+                // Handle base64 encoded image data
+                if (src.src.startsWith('data:image/')) {
+                    return <Image src={src.src} style={style} />;
+                }
+                
+                // Handle URLs
+                if (src.src.includes('cloudinary.com') || 
+                    src.src.startsWith('http') || 
+                    src.src.startsWith('/')
+                ) {
+                    return <Image src={src.src} style={style} />;
+                }
             }
         }
-        // If no fallback or fallback fails, show placeholder
+        
+        // Use fallback image if explicitly provided
+        if (fallbackSrc) {
+            return <Image src={fallbackSrc} style={style} />;
+        }
+        
+        // No valid image source and no fallback - show empty box with message
         return (
-            <View style={[style, { backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center' }]}>
-                <Text style={{ fontSize: 10, textAlign: 'center' }}>Image not available</Text>
+            <View style={[
+                styles.placeholderBox, 
+                { width: style.width, height: style.height }
+            ]}>
+                <Text style={styles.placeholderText}>No image available</Text>
+            </View>
+        );
+    } catch (error) {
+        console.error("Error rendering image:", error);
+        // Fallback to placeholder on error
+        return (
+            <View style={[
+                styles.placeholderBox, 
+                { width: style.width, height: style.height }
+            ]}>
+                <Text style={styles.placeholderText}>Error displaying image</Text>
             </View>
         );
     }
+};
+
+// Component to render a gallery of images with a fallback to default image
+const ImageGallery = ({ images = [], defaultImage, style, title, maxImages = 4 }) => {
+    const hasImages = images && images.length > 0;
+    
+    return (
+        <View style={{ marginBottom: 15 }}>
+            {/*{title && <SafeText style={styles.sectionTitle}>{title}</SafeText>}*/}
+            
+            {hasImages ? (
+                <View style={styles.imageGallery}>
+                    {images.slice(0, maxImages).map((image, index) => (
+                        <SafeImage 
+                            key={index}
+                            src={image} 
+                            style={style || styles.galleryImage}
+                            fallbackSrc={defaultImage}
+                        />
+                    ))}
+                </View>
+            ) : (
+                <View style={{ alignItems: 'center' }}>
+                    <SafeImage 
+                        src={defaultImage}
+                        style={style || styles.staticImage}
+                    />
+                </View>
+            )}
+        </View>
+    );
 };
 
 const ReportPDAPDF = ({ data = {} }) => {
@@ -232,8 +408,23 @@ const ReportPDAPDF = ({ data = {} }) => {
         impactAnalysis = [],
         feedback = [],
         chartImages = [],
-        excelData = []
+        excelData = [],
+        // Extract categorized images with fallbacks
+        categorizedImages = {
+            team: [],
+            winners: [],
+            certificates: [],
+            general: []
+        },
+        // Legacy support for uncategorized images
+        images = []
     } = data;
+
+    // Legacy support: if categorizedImages is not provided but images are, 
+    // use images array for general category
+    if (!categorizedImages.general.length && images && images.length) {
+        categorizedImages.general = images;
+    }
 
     return (
         <Document>
@@ -355,25 +546,52 @@ const ReportPDAPDF = ({ data = {} }) => {
                     )}
 
                     <SafeText style={styles.t5}> Team </SafeText>
-                    {/* Use SafeImage for team photo */}
-                    <View style={{ alignItems: 'center', marginVertical: 10 }}>
-                        <Image src="/team.png" style={styles.staticImage} />
-                    </View>
-                    <SafeText style={styles.t5}> Winner </SafeText>
-                    {/* Use SafeImage for winner photo */}
-                    <View style={{ alignItems: 'center', marginVertical: 10 }}>
-                        <Image src="/winners.png" style={styles.staticImage} />
-                    </View>
+                    {/* Use ImageGallery component for team photos */}
+                    <ImageGallery 
+                        images={categorizedImages.team}
+                        defaultImage="/team.png"
+                        style={styles.staticImage}
+                        //title="Team Members"
+                        maxImages={4}
+                    />
+
+                    <SafeText style={styles.t5}> Winners </SafeText>
+                    {/* Use ImageGallery component for winner photos */}
+                    <ImageGallery 
+                        images={categorizedImages.winners}
+                        defaultImage="/winners.png"
+                        style={styles.staticImage}
+                        //title="Award Recipients"
+                        maxImages={4}
+                    />
                 </View>
             </Page>
 
             <Page size="A4" style={styles.page}>
                 <View style={styles.section}>
                     <SafeText style={styles.t5}> Certificate: </SafeText>
-                    {/* Use SafeImage for certificate template */}
-                    <View style={{ alignItems: 'center', marginVertical: 10 }}>
-                        <Image src="/certificate.png" style={styles.staticImage1} />
-                    </View>
+                    {/* Use ImageGallery component for certificate images */}
+                    <ImageGallery 
+                        images={categorizedImages.certificates}
+                        defaultImage="/certificate.png"
+                        style={styles.staticImage1}
+                        //title="Participation & Achievement Certificates"
+                        maxImages={2}
+                    />
+
+                    {/* If there are additional general images, display them */}
+                    {categorizedImages.general && categorizedImages.general.length > 0 && (
+                        <>
+                            <SafeText style={styles.t5}> Event Highlights </SafeText>
+                            <ImageGallery 
+                                images={categorizedImages.general}
+                                defaultImage="/pda_front.png"
+                                style={styles.staticImage}
+                                //title="Event Photos"
+                                maxImages={4}
+                            />
+                        </>
+                    )}
                 </View>
             </Page>
 
@@ -408,12 +626,97 @@ const ReportPDAPDF = ({ data = {} }) => {
                     
                     {/* Add some statistics if we have excel data */}
                     {excelData && excelData.length > 0 && (
-                        <View style={{ marginTop: 20 }}>
-                            <SafeText style={styles.t5}>Performance Statistics:</SafeText>
-                            <SafeText style={styles.t3}>Total Students: {excelData.length}</SafeText>
-                            <SafeText style={styles.t3}>Average Score: {(excelData.reduce((sum, student) => sum + (parseInt(student['Marks']) || 0), 0) / excelData.length).toFixed(2)}</SafeText>
-                            <SafeText style={styles.t3}>Highest Score: {Math.max(...excelData.map(student => parseInt(student['Marks']) || 0))}</SafeText>
-                            <SafeText style={styles.t3}>Lowest Score: {Math.min(...excelData.map(student => parseInt(student['Marks']) || 0))}</SafeText>
+                        <View style={styles.statsContainer}>
+                            <SafeText style={styles.statsTitle}>Performance Statistics</SafeText>
+                            
+                            {/* Main stats cards in a 2x2 grid */}
+                            <View style={styles.statsGrid}>
+                                <View style={styles.statCard}>
+                                    <SafeText style={styles.statCardTitle}>Total Students</SafeText>
+                                    <SafeText style={styles.statCardValue}>{excelData.length}</SafeText>
+                                </View>
+                                
+                                <View style={[styles.statCard, { borderColor: '#4a90e2' }]}>
+                                    <SafeText style={styles.statCardTitle}>Average Score</SafeText>
+                                    <SafeText style={styles.statCardValue}>
+                                        {(excelData.reduce((sum, student) => sum + (parseInt(student['Marks']) || 0), 0) / excelData.length).toFixed(2)}
+                                    </SafeText>
+                                </View>
+                                
+                                <View style={[styles.statCard, { borderColor: '#4caf50' }]}>
+                                    <SafeText style={styles.statCardTitle}>Highest Score</SafeText>
+                                    <SafeText style={styles.statCardValue}>
+                                        {Math.max(...excelData.map(student => parseInt(student['Marks']) || 0))}
+                                    </SafeText>
+                                </View>
+                                
+                                <View style={[styles.statCard, { borderColor: '#f44336' }]}>
+                                    <SafeText style={styles.statCardTitle}>Lowest Score</SafeText>
+                                    <SafeText style={styles.statCardValue}>
+                                        {Math.min(...excelData.filter(student => parseInt(student['Marks']) > 0).map(student => parseInt(student['Marks']) || 0))}
+                                    </SafeText>
+                                </View>
+                            </View>
+                            
+                            {/* Pass/Fail statistics */}
+                            <View style={styles.passFailContainer}>
+                                {(() => {
+                                    const totalStudents = excelData.length;
+                                    const passingMark = 40; // Assuming 40 is passing mark
+                                    const passedStudents = excelData.filter(student => parseInt(student['Marks']) >= passingMark).length;
+                                    const passPercentage = ((passedStudents / totalStudents) * 100).toFixed(1);
+                                    const failPercentage = (100 - passPercentage).toFixed(1);
+                                    
+                                    return (
+                                        <>
+                                            <View style={[styles.passFailStat, styles.passRate]}>
+                                                <SafeText style={styles.statCardTitle}>Pass Rate</SafeText>
+                                                <SafeText style={[styles.statCardValue, { color: '#2e7d32' }]}>{passPercentage}%</SafeText>
+                                                <SafeText style={{ fontSize: 11, color: '#2e7d32' }}>{passedStudents} students</SafeText>
+                                            </View>
+                                            
+                                            <View style={[styles.passFailStat, styles.failRate]}>
+                                                <SafeText style={styles.statCardTitle}>Fail Rate</SafeText>
+                                                <SafeText style={[styles.statCardValue, { color: '#c62828' }]}>{failPercentage}%</SafeText>
+                                                <SafeText style={{ fontSize: 11, color: '#c62828' }}>{totalStudents - passedStudents} students</SafeText>
+                                            </View>
+                                        </>
+                                    );
+                                })()}
+                            </View>
+                            
+                            {/* Grade Distribution */}
+                            <View style={styles.gradeDistribution}>
+                                <SafeText style={[styles.statCardTitle, { marginBottom: 10, textAlign: 'center' }]}>Grade Distribution</SafeText>
+                                
+                                {(() => {
+                                    const gradeRanges = [
+                                        { min: 90, max: 100, label: 'Excellent (90-100)', color: '#4caf50' },
+                                        { min: 75, max: 89, label: 'Very Good (75-89)', color: '#8bc34a' },
+                                        { min: 60, max: 74, label: 'Good (60-74)', color: '#cddc39' },
+                                        { min: 40, max: 59, label: 'Average (40-59)', color: '#ffeb3b' },
+                                        { min: 0, max: 39, label: 'Needs Improvement', color: '#f44336' }
+                                    ];
+                                    
+                                    const totalStudents = excelData.length;
+                                    
+                                    return gradeRanges.map((grade, index) => {
+                                        const studentsInGrade = excelData.filter(
+                                            student => parseInt(student['Marks']) >= grade.min && parseInt(student['Marks']) <= grade.max
+                                        ).length;
+                                        
+                                        const percentage = (studentsInGrade / totalStudents) * 100;
+                                        
+                                        return (
+                                            <View style={styles.gradeRow} key={index}>
+                                                <SafeText style={styles.gradeLabel}>{grade.label}</SafeText>
+                                                <View style={[styles.gradeBar, { width: `${percentage}%`, backgroundColor: grade.color }]} />
+                                                <SafeText style={styles.gradeValue}>{studentsInGrade} ({percentage.toFixed(1)}%)</SafeText>
+                                            </View>
+                                        );
+                                    });
+                                })()}
+                            </View>
                         </View>
                     )}
                 </View>
@@ -427,15 +730,12 @@ const ReportPDAPDF = ({ data = {} }) => {
                         chartImages.map((img, index) => (
                             <View key={index} style={{ marginBottom: 10 }}>
                                 <SafeText style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 8, textAlign: 'center' }}>
-                                    {img.title}
+                                    {typeof img === 'object' && img.title ? img.title : `Chart ${index + 1}`}
                                 </SafeText>
-                                {img.src ? (
-                                    <SafeImage src={img.src} style={styles.chartImage} />
-                                ) : (
-                                    <View style={styles.placeholderBox}>
-                                        <SafeText style={styles.placeholderText}>[Chart Image: {img.title}]</SafeText>
-                                    </View>
-                                )}
+                                <SafeImage 
+                                    src={typeof img === 'object' ? (img.src || img) : img} 
+                                    style={styles.chartImage} 
+                                />
                             </View>
                         ))
                     ) : (

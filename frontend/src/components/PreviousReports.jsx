@@ -4,9 +4,10 @@ import axios from 'axios';
 import { saveAs } from "file-saver";
 import { Document, Packer, Paragraph, TextRun } from "docx";
 import { pdf } from "@react-pdf/renderer";
-import { FaDownload, FaFilePdf, FaFileWord, FaArrowLeft, FaChalkboardTeacher, FaChartBar } from 'react-icons/fa';
+import { FaDownload, FaFilePdf, FaFileWord, FaArrowLeft, FaChalkboardTeacher, FaChartBar, FaUserTie, FaTrash } from 'react-icons/fa';
 import ReportPDF from "./ReportPDF";
 import ReportPDAPDFContainer from "./ReportPDAPDFContainer";
+import ExpertReportPDFContainer from "./ExpertReportPDFContainer";
 
 const PreviousReports = () => {
   const [reports, setReports] = useState([]);
@@ -17,6 +18,8 @@ const PreviousReports = () => {
   const [filter, setFilter] = useState('all'); // 'all', 'teaching', or 'pda'
   const [downloading, setDownloading] = useState(false);
   const [downloadStatus, setDownloadStatus] = useState('');
+  const [deletingReport, setDeletingReport] = useState(false);
+  const [deleteStatus, setDeleteStatus] = useState('');
 
   const fetchReports = async () => {
     try {
@@ -39,10 +42,22 @@ const PreviousReports = () => {
       console.log('API Response:', response.data); // Debug API response
       // Map reports and add a type field (Default to 'teaching' for existing reports)
       const processedReports = Array.isArray(response.data) 
-        ? response.data.map(report => ({
-            ...report,
-            reportType: report.reportType || 'teaching' // Default to 'teaching' if not specified
-          }))
+        ? response.data.map(report => {
+            // For backward compatibility assign a report type if not present
+            const reportType = report.reportType || 'teaching';
+            
+            // Handle date fields specifically for expert reports
+            let dateField = report.date;
+            if (reportType === 'expert' && !dateField && report.eventDate) {
+              dateField = report.eventDate;
+            }
+            
+            return {
+              ...report,
+              reportType,
+              date: dateField
+            };
+          })
         : [];
         
       setReports(processedReports);
@@ -87,15 +102,77 @@ const PreviousReports = () => {
       
       const reportData = response.data;
       const isPDA = reportData.reportType === 'pda';
+      const isExpert = reportData.reportType === 'expert';
       
       console.log('Report data received:', {
         id: reportData._id,
         title: reportData.title,
         type: reportData.reportType,
         isPDA,
+        isExpert,
         hasChartImages: !!reportData.chartImages && reportData.chartImages.length > 0,
         chartImagesCount: reportData.chartImages?.length || 0
       });
+      
+      // For PDA reports, ensure we have a proper categorizedImages structure
+      if (isPDA) {
+        // If the report doesn't have categorizedImages but has a flat images array,
+        // convert it to the new structure for backward compatibility
+        if (!reportData.categorizedImages && reportData.images) {
+          console.log('Converting legacy PDA report format to categorized images format');
+          reportData.categorizedImages = {
+            team: [],
+            winners: [],
+            certificates: [],
+            general: reportData.images || [] // Put all images in general category
+          };
+        } else if (!reportData.categorizedImages) {
+          // If no images at all, initialize with empty arrays
+          reportData.categorizedImages = {
+            team: [],
+            winners: [],
+            certificates: [],
+            general: []
+          };
+        }
+        
+        console.log('PDA report categorized images:', {
+          team: reportData.categorizedImages.team?.length || 0,
+          winners: reportData.categorizedImages.winners?.length || 0,
+          certificates: reportData.categorizedImages.certificates?.length || 0,
+          general: reportData.categorizedImages.general?.length || 0
+        });
+      }
+      
+      // For Expert reports, ensure we have a proper categorizedImages structure
+      if (isExpert) {
+        // If the report doesn't have categorizedImages but has a flat images array,
+        // convert it to the new structure for backward compatibility
+        if (!reportData.categorizedImages && reportData.images) {
+          console.log('Converting legacy Expert report format to categorized images format');
+          reportData.categorizedImages = {
+            team: [],
+            speakers: [],
+            certificates: [],
+            general: reportData.images || [] // Put all images in general category
+          };
+        } else if (!reportData.categorizedImages) {
+          // If no images at all, initialize with empty arrays
+          reportData.categorizedImages = {
+            team: [],
+            speakers: [],
+            certificates: [],
+            general: []
+          };
+        }
+        
+        console.log('Expert report categorized images:', {
+          team: reportData.categorizedImages.team?.length || 0,
+          speakers: reportData.categorizedImages.speakers?.length || 0,
+          certificates: reportData.categorizedImages.certificates?.length || 0,
+          general: reportData.categorizedImages.general?.length || 0
+        });
+      }
       
       if (format === 'pdf') {
         try {
@@ -105,22 +182,58 @@ const PreviousReports = () => {
           // Log chart image information for debugging
           if (reportData.chartImages) {
             console.log(`Chart images available: ${reportData.chartImages.length}`);
+            
+            // More detailed inspection of chart images format
             if (reportData.chartImages.length > 0) {
-              // Log first chart image type for debugging
-              if (typeof reportData.chartImages[0] === 'string') {
-                console.log('Chart image format: string (data URL)');
+              // Check first chart image format
+              const firstImage = reportData.chartImages[0];
+              
+              if (typeof firstImage === 'string') {
+                console.log('Chart image format: string');
+                console.log('First chart image data starts with:', firstImage.substring(0, 50) + '...');
+              } else if (typeof firstImage === 'object') {
+                console.log('Chart image format: object with keys:', Object.keys(firstImage));
+                if (firstImage.src) {
+                  console.log('Image src property starts with:', firstImage.src.substring(0, 50) + '...');
+                }
+                if (firstImage.title) {
+                  console.log('Image title:', firstImage.title);
+                }
               } else {
-                console.log('Chart image format: object', Object.keys(reportData.chartImages[0]));
+                console.log('Chart image format: unknown', typeof firstImage);
               }
+              
+              // Ensure all chart images have the expected structure
+              reportData.chartImages = reportData.chartImages.map(img => {
+                if (typeof img === 'string' && img.startsWith('data:image/')) {
+                  // Convert string image data to object format
+                  return { src: img, title: 'Chart' };
+                } else if (typeof img === 'object' && img.src) {
+                  // Keep object format but ensure title exists
+                  return { ...img, title: img.title || 'Chart' };
+                } else {
+                  // Invalid format, log it
+                  console.log('Invalid chart image format:', typeof img, img);
+                  return null;
+                }
+              }).filter(img => img !== null); // Remove any null images
+              
+              console.log(`Processed ${reportData.chartImages.length} valid chart images`);
             }
           } else {
             console.log('No chart images in the report data');
+            reportData.chartImages = []; // Ensure it's an empty array not undefined
           }
           
-          // Create the PDF document directly
-          const pdfDoc = isPDA 
-            ? <ReportPDAPDFContainer data={reportData} />
-            : <ReportPDF data={reportData} />;
+          // Create the PDF document directly based on report type
+          let pdfDoc;
+          if (isPDA) {
+            pdfDoc = <ReportPDAPDFContainer data={reportData} />;
+          } else if (isExpert) {
+            pdfDoc = <ExpertReportPDFContainer data={reportData} chartImages={reportData.chartImages} />;
+          } else {
+            pdfDoc = <ReportPDF data={reportData} />;
+          }
           
           console.log('PDF component created, generating blob...');
           const asPdf = pdf();
@@ -129,7 +242,13 @@ const PreviousReports = () => {
           console.log('PDF blob created successfully');
           
           // Create a filename with appropriate prefix
-          const filePrefix = isPDA ? 'PDA_Report_' : 'Teaching_Report_';
+          let filePrefix = 'Teaching_Report_';
+          if (isPDA) {
+            filePrefix = 'PDA_Report_';
+          } else if (isExpert) {
+            filePrefix = 'Expert_Session_';
+          }
+          
           const fileName = `${filePrefix}${reportData.title.replace(/\s+/g, "_")}.pdf`;
           console.log(`Saving PDF as: ${fileName}`);
           
@@ -279,6 +398,76 @@ const PreviousReports = () => {
         });
       }
       
+    } else if (reportData.reportType === 'expert') {
+      // Expert Report specific structure
+      commonSection.children.push(
+        new Paragraph({ text: "Expert Session Report", heading: "Heading1" }),
+        new Paragraph({ text: reportData.title || 'N/A', heading: "Heading2" }),
+        new Paragraph(`Event Date: ${reportData.eventDate || reportData.date || 'N/A'}`),
+        new Paragraph(`Event Time: ${reportData.eventTime || 'N/A'}`),
+        new Paragraph(`Organized By: ${reportData.organizer || 'N/A'}`),
+        new Paragraph(`Course Name: ${reportData.courseName || 'N/A'}`),
+        new Paragraph(`Mode: ${reportData.mode || 'N/A'}`),
+        new Paragraph(`Number of Participants: ${reportData.participants || reportData.studentsAttended || 'N/A'}`),
+        new Paragraph(`Resource Person: ${reportData.resourcePerson || 'N/A'}`),
+        new Paragraph("")
+      );
+      
+      // Add objectives
+      commonSection.children.push(
+        new Paragraph({ text: "Objectives:", heading: "Heading2" })
+      );
+      
+      if (reportData.objectives && reportData.objectives.length > 0) {
+        reportData.objectives.forEach((obj, index) => {
+          commonSection.children.push(new Paragraph(`${index + 1}. ${obj}`));
+        });
+      }
+      
+      // Add outcomes
+      commonSection.children.push(
+        new Paragraph(""),
+        new Paragraph({ text: "Outcomes:", heading: "Heading2" })
+      );
+      
+      if (reportData.outcomes && reportData.outcomes.length > 0) {
+        reportData.outcomes.forEach((outcome, index) => {
+          // Handle both string and object formats
+          const outcomeText = typeof outcome === 'string' ? outcome : outcome.content || outcome.toString();
+          commonSection.children.push(new Paragraph(`${index + 1}. ${outcomeText}`));
+        });
+      }
+      
+      // Add CO/PO Mapping
+      commonSection.children.push(
+        new Paragraph(""),
+        new Paragraph({ text: "CO/PO Mapping:", heading: "Heading2" })
+      );
+      
+      if (reportData.coPoMapping && reportData.coPoMapping.length > 0) {
+        reportData.coPoMapping.forEach((mapping, index) => {
+          commonSection.children.push(new Paragraph(`${index + 1}. ${mapping.code}: ${mapping.description}`));
+        });
+      }
+      
+      // Add Impact Analysis
+      commonSection.children.push(
+        new Paragraph(""),
+        new Paragraph({ text: "Impact Analysis:", heading: "Heading2" })
+      );
+      
+      if (reportData.impactAnalysis && reportData.impactAnalysis.length > 0) {
+        reportData.impactAnalysis.forEach((impact, index) => {
+          // Handle both string and object formats
+          if (typeof impact === 'string') {
+            commonSection.children.push(new Paragraph(`${index + 1}. ${impact}`));
+          } else if (impact.title && impact.content) {
+            commonSection.children.push(
+              new Paragraph(`${index + 1}. ${impact.title}: ${impact.content}`)
+            );
+          }
+        });
+      }
     } else {
       // Teaching Report specific structure
       commonSection.children.push(
@@ -322,13 +511,20 @@ const PreviousReports = () => {
     });
 
     const blob = await Packer.toBlob(doc);
-    const filePrefix = reportData.reportType === 'pda' ? 'PDA_Report_' : 'Teaching_Report_';
+    let filePrefix = 'Teaching_Report_';
+    if (reportData.reportType === 'pda') {
+      filePrefix = 'PDA_Report_';
+    } else if (reportData.reportType === 'expert') {
+      filePrefix = 'Expert_Session_';
+    }
     saveAs(blob, `${filePrefix}${reportData.title.replace(/\s+/g, "_")}.docx`);
   };
 
   const getReportTypeIcon = (type) => {
     if (type === 'pda') {
       return <FaChartBar className="mr-1 text-purple-600" title="PDA Report" />;
+    } else if (type === 'expert') {
+      return <FaUserTie className="mr-1 text-orange-600" title="Expert Report" />;
     }
     return <FaChalkboardTeacher className="mr-1 text-blue-600" title="Teaching Report" />;
   };
@@ -336,6 +532,8 @@ const PreviousReports = () => {
   const getReportTypeText = (type) => {
     if (type === 'pda') {
       return <span className="text-purple-600 font-medium">PDA Report</span>;
+    } else if (type === 'expert') {
+      return <span className="text-orange-600 font-medium">Expert Report</span>;
     }
     return <span className="text-blue-600 font-medium">Teaching Report</span>;
   };
@@ -345,12 +543,47 @@ const PreviousReports = () => {
     ? reports 
     : reports.filter(report => report.reportType === filter);
 
+  // Delete a report
+  const handleDeleteReport = async (reportId) => {
+    if (!reportId) return;
+    
+    // Confirm deletion with the user
+    if (!window.confirm('Are you sure you want to delete this report? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      setDeletingReport(true);
+      setDeleteStatus('Deleting report...');
+      
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication token not found. Please log in again.');
+      }
+      
+      await axios.delete(`http://localhost:8000/api/reports/${reportId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setDeleteStatus('Report successfully deleted');
+      // Refresh the reports list
+      fetchReports();
+    } catch (error) {
+      console.error('Error deleting report:', error);
+      setDeleteStatus(`Error deleting report: ${error.message}`);
+    } finally {
+      setDeletingReport(false);
+      // Clear status message after 3 seconds
+      setTimeout(() => {
+        setDeleteStatus('');
+      }, 3000);
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto p-8">
       <div className="flex items-center justify-between mb-8">
-        <Link to="/dashboard" className="flex items-center text-blue-600 hover:text-blue-800">
-          <FaArrowLeft className="mr-2" /> Back to Dashboard
-        </Link>
+        <h1 className="text-3xl font-bold text-gray-800">Previous Reports</h1>
         <button 
           onClick={handleRefresh} 
           className="flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-300"
@@ -359,8 +592,6 @@ const PreviousReports = () => {
           {loading ? 'Loading...' : 'Refresh'}
         </button>
       </div>
-      
-      <h1 className="text-3xl font-bold text-gray-800 mb-6">Previous Reports</h1>
       
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
@@ -381,6 +612,17 @@ const PreviousReports = () => {
         </div>
       )}
       
+      {deleteStatus && (
+        <div className={`px-4 py-3 rounded mb-6 flex items-center justify-between ${
+          deleteStatus.includes('successfully') 
+            ? 'bg-green-50 border border-green-200 text-green-700' 
+            : 'bg-red-50 border border-red-200 text-red-700'
+        }`}>
+          <p>{deleteStatus}</p>
+          {deletingReport && <div className="w-5 h-5 border-t-2 border-b-2 border-red-500 rounded-full animate-spin"></div>}
+        </div>
+      )}
+      
       {loading ? (
         <div className="text-center py-8">
           <p className="text-gray-600">Loading reports...</p>
@@ -388,7 +630,7 @@ const PreviousReports = () => {
       ) : reports.length === 0 ? (
         <div className="bg-white rounded-lg shadow-md p-8 text-center">
           <p className="text-gray-600 mb-4">No reports found.</p>
-          <div className="flex justify-center space-x-4">
+          <div className="flex flex-wrap justify-center gap-4">
             <Link 
               to="/create-report" 
               className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-300"
@@ -400,6 +642,12 @@ const PreviousReports = () => {
               className="inline-block px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition duration-300"
             >
               Create PDA Report
+            </Link>
+            <Link 
+              to="/create-expert-report" 
+              className="inline-block px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition duration-300"
+            >
+              Create Expert Report
             </Link>
           </div>
         </div>
@@ -417,6 +665,7 @@ const PreviousReports = () => {
                 <option value="all">All Reports</option>
                 <option value="teaching">Teaching Reports</option>
                 <option value="pda">PDA Reports</option>
+                <option value="expert">Expert Reports</option>
               </select>
             </div>
           </div>
@@ -427,19 +676,20 @@ const PreviousReports = () => {
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
-                  {/* Only show Subject/Event header for all reports or when filtering by teaching */}
-                  {filter !== 'pda' && (
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject/Event</th>
-                  )}
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Download
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    {filter === 'expert' ? 'Event Date' : 'Date'}
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Delete</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredReports.length === 0 ? (
                   <tr>
                     <td colSpan={filter === 'pda' ? "4" : "5"} className="px-6 py-4 text-center text-gray-500">
-                      No {filter} reports found
+                      No {filter !== 'all' ? filter : ''} reports found
                     </td>
                   </tr>
                 ) : (
@@ -454,30 +704,41 @@ const PreviousReports = () => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">{report.title}</div>
                       </td>
-                      {/* Only show Subject/Event cell for teaching reports or when not filtered to PDA */}
-                      {(report.reportType !== 'pda' || filter !== 'pda') && (
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500">{report.subjectName || report.targetAudience || '-'}</div>
-                        </td>
-                      )}
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-500">{report.date}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex space-x-3">
                           <button
                             onClick={() => handleDownload(report._id, 'pdf')}
-                            className="text-red-600 hover:text-red-900 flex items-center"
+                            className="text-red-600 hover:text-red-900 flex items-center text-sm"
                             title="Download as PDF"
                           >
                             <FaFilePdf className="mr-1" /> PDF
                           </button>
                           <button
                             onClick={() => handleDownload(report._id, 'docx')}
-                            className="text-blue-600 hover:text-blue-900 flex items-center"
+                            className="text-blue-600 hover:text-blue-900 flex items-center text-sm"
                             title="Download as Word"
                           >
                             <FaFileWord className="mr-1" /> Word
+                          </button>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-500">
+                          {report.reportType === 'expert'
+                            ? (report.eventDate || report.date || '-')
+                            : (report.date || '-')}
+                          {report.reportType === 'expert' && report.eventTime && 
+                            <span className="ml-1 text-xs text-gray-400">({report.eventTime})</span>}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex space-x-3">
+                          <button
+                            onClick={() => handleDeleteReport(report._id)}
+                            className="text-red-600 hover:text-red-900 flex items-center"
+                            title="Delete Report"
+                          >
+                            <FaTrash className="mr-1" /> Delete
                           </button>
                         </div>
                       </td>

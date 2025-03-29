@@ -241,18 +241,21 @@ const styles = StyleSheet.create({
     width: 106,
     height: 110,
     alignSelf: 'center',
-    marginBottom: 10
+    marginBottom: 5
   },
   staticImage: {
     width: '100%',
     maxWidth: 400,
     height: 'auto',
-    maxHeight: 300,
+    maxHeight: 270,
     objectFit: 'contain',
     alignSelf: 'center',
-    marginBottom: 10
+    marginBottom: 5
   },
 });
+
+// Define constants
+const MAX_ITEMS_ON_FIRST_PAGE = 3; // Maximum number of extra sections to display on the first page
 
 // Try/catch wrapper for safe text display
 const SafeText = ({ style, children }) => {
@@ -430,48 +433,168 @@ const ReportPDF = ({ data }) => (
           <Text style={styles.col3}><Text style={styles.t3}></Text>
           </Text>
             <View style={styles.col4}>
-              <Image src="/snap1.png" style={styles.staticImage} />
+              {data.images && data.images.length > 0 ? (
+                <SafeImage src={data.images[0]} style={styles.staticImage} />
+              ) : (
+                <SafeImage src="/snap1.png" style={styles.staticImage} />
+              )}
             </View>
         </View>
       </View>
     </Page>
 
-    {/* Add dynamic pages for images if available */}
-        <Page  size="A4" style={styles.page}>
-          {/* Title Section repeated for image pages */}
-          <View style={styles.section}>
-            <View style={styles.tableRow}>
-              <Text style={styles.col1}>
-                <Image style={styles.logoImage} src="/pict_logo.png" />
+    {/* Add dynamic pages for images if available, or default images if none */}
+    {(data.images && data.images.length > 1) ? (
+      (() => {
+        // Calculate how many image pages we need (max 4 images per page after the first image)
+        const imagesPerPage = 2;
+        const remainingImages = data.images.slice(1);
+        const numPages = Math.ceil(remainingImages.length / imagesPerPage);
+        
+        // Create array of pages
+        const pages = [];
+        
+        for (let i = 0; i < numPages; i++) {
+          const startIdx = i * imagesPerPage;
+          const endIdx = Math.min(startIdx + imagesPerPage, remainingImages.length);
+          const pageImages = remainingImages.slice(startIdx, endIdx);
+          
+          pages.push(
+            <Page key={`image-page-${i}`} size="A4" style={styles.page}>
+              {/* Title Section repeated for image pages */}
+              <View style={styles.section}>
+                <View style={styles.tableRow}>
+                  <Text style={styles.col1}>
+                    <Image style={styles.logoImage} src="/pict_logo.png" />
+                  </Text>
+                  <View style={styles.col2}>
+                    <Text style={styles.t2}>
+                      PUNE INSTITUTE OF COMPUTER TECHNOLOGY, PUNE - 411043{'\n'}
+                    </Text>
+                    <View style={styles.line} />
+                    <Text style={styles.t1}>
+                      Department of Information Technology {'\n'}
+                      S.No.-27, Pune Satara Road, Dhankawadi, Pune-411043
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.section}>
+                <View style={styles.tableRow}>
+                  <Text style={styles.col3}><Text style={styles.t3}></Text></Text>
+                  <View style={styles.col4}>
+                    {/* Render images for this page */}
+                    {pageImages.map((imageUrl, idx) => (
+                      <View key={`img-${startIdx + idx}`} style={{ marginBottom: 10 }}>
+                        <SafeImage src={imageUrl} style={styles.staticImage} />
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              </View>
+            </Page>
+          );
+        }
+        
+        return pages;
+      })()
+    ) : (
+      // Default static images page when no user images are uploaded
+      <Page size="A4" style={styles.page}>
+        {/* Title Section repeated for image pages */}
+        <View style={styles.section}>
+          <View style={styles.tableRow}>
+            <Text style={styles.col1}>
+              <Image style={styles.logoImage} src="/pict_logo.png" />
+            </Text>
+            <View style={styles.col2}>
+              <Text style={styles.t2}>
+                PUNE INSTITUTE OF COMPUTER TECHNOLOGY, PUNE - 411043{'\n'}
               </Text>
-              <View style={styles.col2}>
-                <Text style={styles.t2}>
-                  PUNE INSTITUTE OF COMPUTER TECHNOLOGY, PUNE - 411043{'\n'}
-                </Text>
-                <View style={styles.line} />
-                <Text style={styles.t1}>
-                  Department of Information Technology {'\n'}
-                  S.No.-27, Pune Satara Road, Dhankawadi, Pune-411043
-                </Text>
+              <View style={styles.line} />
+              <Text style={styles.t1}>
+                Department of Information Technology {'\n'}
+                S.No.-27, Pune Satara Road, Dhankawadi, Pune-411043
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.tableRow}>
+            <Text style={styles.col3}><Text style={styles.t3}></Text></Text>
+            <View style={styles.col4}>
+              {/* Render default static images */}
+              <View style={{ marginBottom: 10 }}>
+                <SafeImage src="/snap2.png" style={styles.staticImage} />
+              </View>
+              <View style={{ marginBottom: 10 }}>
+                <SafeImage src="/snap3.png" style={styles.staticImage} />
               </View>
             </View>
           </View>
+        </View>
+      </Page>
+    )}
 
-          <View style={styles.section}>
-            <View style={styles.tableRow}>
-              <Text style={styles.col3}><Text style={styles.t3}></Text></Text>
-              <View style={styles.col4}>
-                {/* Note: @react-pdf/renderer cannot display images from data URLs directly in some versions */}
-                {/* This is a placeholder - in a production app, you would save these images on a server and reference them */}
-                <Image src="/snap2.png" style={styles.staticImage} />
-                <Image src="/snap3.png" style={styles.staticImage} />
-                {/* <Image style={styles.img} src={imageUrl} /> */}
-              </View>
-            </View>
-          </View>
-        </Page>
+{/* First Page Content */}
+{data.extraSections && data.extraSections.length > 0 && <Page size="A4" style={styles.page}>
+  <View style={styles.section}>
+    {/* Title Section */}
+    <View style={styles.tableRow}>
+      <Text style={styles.col1}>
+        <Image style={styles.logoImage} src="/pict_logo.png" />
+      </Text>
+      <View style={styles.col2}>
+        <Text style={styles.t2}>
+          PUNE INSTITUTE OF COMPUTER TECHNOLOGY, PUNE - 411043{'\n'}
+        </Text>
+        <View style={styles.line} />
+        <Text style={styles.t1}>
+          Department of Information Technology {'\n'}
+          S.No.-27, Pune Satara Road, Dhankawadi, Pune-411043
+        </Text>
+      </View>
+    </View>
 
+    {/* Extra Sections (Start adding on first page if possible) */}
+    {data.extraSections.slice(0, MAX_ITEMS_ON_FIRST_PAGE).map((section, index) => (
+      <View key={index} style={styles.tableRow}>
+        <Text style={styles.col3}><Text style={styles.t3}>{index + 7}</Text></Text>
+        <Text style={styles.col4}>
+          <Text style={styles.t3}>
+            {section.title || 'Untitled Section'}: {'\n'}
+          </Text>
+          <Text style={styles.t3}>
+            {section.description || 'No description provided.'}
+          </Text>
+        </Text>
+      </View>
+    ))}
+  </View>
+</Page>
 
+  }
+
+{/* New Page for Overflowing Extra Sections */}
+{data.extraSections && data.extraSections.length > 0 && data.extraSections.slice(MAX_ITEMS_ON_FIRST_PAGE).map((section, index) => (
+  <Page key={`extra-${index}`} size="A4" style={styles.page}>
+    <View style={styles.section}>
+      <View style={styles.tableRow}>
+        <Text style={styles.col3}><Text style={styles.t3}>{MAX_ITEMS_ON_FIRST_PAGE + index + 7}</Text></Text>
+        <Text style={styles.col4}>
+          <Text style={styles.t3}>
+            {section.title || 'Untitled Section'}: {'\n'}
+          </Text>
+          <Text style={styles.t3}>
+            {section.description || 'No description provided.'}
+          </Text>
+        </Text>
+      </View>
+    </View>
+  </Page>
+))}
     {/* Add page for Roll No wise Activity Analysis */}
     <Page size="A4" style={styles.page}>
       <View style={styles.section}>
@@ -519,13 +642,13 @@ const ReportPDF = ({ data }) => (
               </View>
               <View style={styles.activityTableRow}>
                 <Text style={{...styles.activityTableCell, fontSize: 16, padding: 10}}>
-                  {data.participationData?.totalStudents || 79}
+                  {data.participationData?.totalStudents || 0}
                 </Text>
                 <Text style={{...styles.activityTableCell, fontSize: 16, padding: 10}}>
-                  {data.participationData?.materialProvidedTo || data.participationData?.totalStudents || 79}
+                  {data.participationData?.materialProvidedTo || data.participationData?.totalStudents || 0}
                 </Text>
                 <Text style={{...styles.activityTableLastCell, fontSize: 16, padding: 10}}>
-                  {data.participationData?.studentsParticipated || 36}
+                  {data.participationData?.studentsParticipated || 0}
                 </Text>
               </View>
               <View style={styles.activityTableRow}>
@@ -534,7 +657,7 @@ const ReportPDF = ({ data }) => (
                 </Text>
                 <Text style={{...styles.activityTableLastCell, fontSize: 16, padding: 10}}>
                   {data.participationData?.participationPercentage || 
-                    ((data.participationData?.studentsParticipated / data.participationData?.totalStudents * 100) || 38.70).toFixed(2)} %
+                    ((data.participationData?.studentsParticipated / data.participationData?.totalStudents * 100) || 0).toFixed(2)} %
                 </Text>
               </View>
             </View>
@@ -632,12 +755,12 @@ const ReportPDF = ({ data }) => (
                       Feedback Data Summary:
                     </SafeText>
                     {data.feedbackData.map((item, index) => (
-                      <View key={index} style={{marginBottom: 10}}>
-                        <SafeText style={{fontSize: 10, fontWeight: 'bold'}}>
+                      <View key={index} style={{marginBottom: 10, textAlign: 'left'}}>
+                        <SafeText style={{fontSize: 10, fontWeight: 'bold', textAlign: 'left'}}>
                           Question {index+1}: {item.question}
                         </SafeText>
                         {Object.entries(item.responses).map(([response, count], respIndex) => (
-                          <SafeText key={respIndex} style={{fontSize: 10}}>
+                          <SafeText key={respIndex} style={{fontSize: 10, textAlign: 'left'}}>
                             • {response}: {count} responses
                           </SafeText>
                         ))}
@@ -757,7 +880,7 @@ const ReportPDF = ({ data }) => (
                       <View style={styles.responseSummary}>
                         <View style={{flexDirection: 'row', flexWrap: 'wrap'}}>
                           {Object.entries(data.feedbackData[currentQuestionIndex].responses).map(([response, count], respIndex) => (
-                            <View key={respIndex} style={{flexDirection: 'row', marginRight: 20, marginBottom: 10, width: '45%'}}>
+                            <View key={respIndex} style={{flexDirection: 'row', marginRight: 20, marginBottom: 5, width: '45%'}}>
                               <SafeText style={{fontSize: 8, fontWeight: 'bold'}}>• {response}: </SafeText>
                               <SafeText style={{fontSize: 8}}>{count} responses</SafeText>
                             </View>
@@ -792,7 +915,7 @@ const ReportPDF = ({ data }) => (
                         <View style={styles.responseSummary}>
                           <View style={{flexDirection: 'row', flexWrap: 'wrap'}}>
                             {Object.entries(data.feedbackData[nextQuestionIndex].responses).map(([response, count], respIndex) => (
-                              <View key={respIndex} style={{flexDirection: 'row', marginRight: 20, marginBottom: 10, width: '45%'}}>
+                              <View key={respIndex} style={{flexDirection: 'row', marginRight: 20, marginBottom: 5, width: '45%'}}>
                                 <SafeText style={{fontSize: 8, fontWeight: 'bold'}}>• {response}: </SafeText>
                                 <SafeText style={{fontSize: 8}}>{count} responses</SafeText>
                               </View>
@@ -836,9 +959,9 @@ const ReportPDF = ({ data }) => (
 
       <View style={styles.section}>
         <Text style={styles.t3}>
-          {data.facultyName || 'Faculty Name'}                                                                                     Dr. A. S. Ghottkar {'\n'}
-          Course Teacher                                                                                                 HoD-IT  {'\n'}
-          Name & Signature     
+          {data.facultyName || 'Faculty Name'}{'\n'}                                                                                    
+          Course Teacher                                                                                             Dr. A. S. Ghottkar{'\n'} 
+          Signature                                                                                                        HoD-IT  {'\n'}
         </Text>
       </View>
     </Page>

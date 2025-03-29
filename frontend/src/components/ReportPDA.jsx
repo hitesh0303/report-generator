@@ -1,16 +1,18 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from 'react-router-dom';
 import axios from "axios";
 import { pdf } from "@react-pdf/renderer";
 import { Document, Packer, Paragraph, TextRun } from "docx";
 import { saveAs } from "file-saver";
-import { FaArrowLeft, FaFilePdf, FaFileWord, FaUpload, FaTrash, FaPlus, FaFileExcel } from "react-icons/fa";
+import { FaArrowLeft, FaFilePdf, FaFileWord, FaUpload, FaTrash, FaPlus, FaFileExcel, FaCamera, FaChartBar, FaInfoCircle, FaCloudUploadAlt } from "react-icons/fa";
 import ReportPDAPDFContainer from "./ReportPDAPDFContainer";
 import FeedbackCharts from "./FeedbackCharts";
 import { processExcelData, prepareChartData } from "../utils/feedbackAnalysis";
 import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
 import ErrorBoundary from "./ErrorBoundary";
+import { uploadMultipleBase64ToCloudinary } from '../utils/cloudinaryUtils';
+import CloudinaryUploader from './CloudinaryUploader';
 
 const ReportPDA = () => {
   const initialFormState = {
@@ -57,12 +59,25 @@ const ReportPDA = () => {
     ],
     chartImages: [],
     excelData: [],
-    feedbackData: [] // Store processed feedback data
+    feedbackData: [], // Store processed feedback data
+    // Categorized images structure
+    categorizedImages: {
+      team: [],
+      winners: [],
+      certificates: [],
+      general: [] // For uncategorized images
+    }
   };
 
   const [formData, setFormData] = useState(initialFormState);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [imageFiles, setImageFiles] = useState([]);
+  // Update imageFiles to track categories
+  const [imageFiles, setImageFiles] = useState({
+    team: [],
+    winners: [],
+    certificates: [],
+    general: []
+  });
   const [excelFile, setExcelFile] = useState(null);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [isGeneratingWord, setIsGeneratingWord] = useState(false);
@@ -214,18 +229,53 @@ const ReportPDA = () => {
   };
 
   // Remove an image
-  const handleRemoveImage = (index) => {
-    const newImageFiles = [...imageFiles];
-    URL.revokeObjectURL(newImageFiles[index].preview);
-    newImageFiles.splice(index, 1);
-    setImageFiles(newImageFiles);
+  const handleRemoveImage = (index, category = 'general') => {
+    console.log(`Removing image at index ${index} from ${category} category`);
     
-    setFormData({
-      ...formData,
-      chartImages: newImageFiles.map(img => ({ 
-        src: img.preview,
-        title: img.title
-      }))
+    // Remove from imageFiles state
+    setImageFiles(prevFiles => {
+      // Create a deep copy of the current state to avoid reference issues
+      const updatedFiles = { ...prevFiles };
+      
+      // Make sure the category exists and has images
+      if (updatedFiles[category] && updatedFiles[category].length > index) {
+        const newCategoryFiles = [...updatedFiles[category]];
+        newCategoryFiles.splice(index, 1);
+        updatedFiles[category] = newCategoryFiles;
+        console.log(`Removed image from imageFiles. ${category} category now has ${newCategoryFiles.length} images`);
+      } else {
+        console.warn(`Could not find image at index ${index} in ${category} category`);
+      }
+      
+      return updatedFiles;
+    });
+    
+    // Also update formData
+    setFormData(prevData => {
+      // Make sure the category exists in categorizedImages
+      if (!prevData.categorizedImages || !prevData.categorizedImages[category]) {
+        console.warn(`Category ${category} not found in formData.categorizedImages`);
+        return prevData;
+      }
+      
+      // Make sure we have enough images to remove the specified index
+      if (prevData.categorizedImages[category].length <= index) {
+        console.warn(`Index ${index} out of bounds for ${category} category (length: ${prevData.categorizedImages[category].length})`);
+        return prevData;
+      }
+      
+      const updatedCategoryUrls = [...prevData.categorizedImages[category]];
+      updatedCategoryUrls.splice(index, 1);
+      
+      console.log(`Removed image URL from formData. ${category} category now has ${updatedCategoryUrls.length} image URLs`);
+      
+      return {
+        ...prevData,
+        categorizedImages: {
+          ...prevData.categorizedImages,
+          [category]: updatedCategoryUrls
+        }
+      };
     });
   };
 
@@ -292,93 +342,78 @@ const ReportPDA = () => {
       setStatusMessage(`Found ${chartItemElements.length} chart items to capture`);
       
       if (chartItemElements.length === 0) {
-        setStatusMessage('No chart items found to capture');
+        setStatusMessage('No chart items found to capture. Please upload feedback data first.');
         return;
       }
 
       // Process each question container separately
       for (let i = 0; i < chartItemElements.length; i++) {
         const itemElement = chartItemElements[i];
-        const questionHeader = itemElement.querySelector('h4').textContent;
+        const questionHeader = itemElement.querySelector('h4')?.textContent || `Question ${i+1}`;
+        
+        // Update status with current chart index
         setStatusMessage(`Capturing chart ${i+1}/${chartItemElements.length}: ${questionHeader}...`);
         
         // Capture the entire chart item (both bar and pie charts together)
         try {
           // Add temporary styling to make content more compact for capture
           const originalStyle = itemElement.getAttribute('style') || '';
-          itemElement.style.backgroundColor = '#ffffff';
-          itemElement.style.padding = '15px';
-          itemElement.style.boxShadow = 'none';
-          itemElement.style.border = 'none';
-          itemElement.style.margin = '0';
+          itemElement.setAttribute('style', `${originalStyle}; background-color: white; padding: 10px; border-radius: 8px;`);
           
-          // Get content measurements to crop out whitespace
-          const chartGrid = itemElement.querySelector('.grid');
-          if (chartGrid) {
-            chartGrid.style.gap = '10px'; // Reduce gap between charts
-          }
-          
+          // Use html2canvas to capture the element
           const canvas = await html2canvas(itemElement, {
-            scale: 2.5, // High quality but reasonable size
-            logging: true,
-            useCORS: true,
-            backgroundColor: '#ffffff',
-            onclone: (clonedDoc, element) => {
-              // Clean up the cloned element for better capture
-              element.style.width = `${itemElement.offsetWidth}px`;
-
-              // Remove any excessive padding/margins from child elements
-              Array.from(element.querySelectorAll('*')).forEach(el => {
-                if (el.style) {
-                  el.style.margin = '0px';
-                  el.style.marginTop = '5px';
-                  el.style.marginBottom = '5px';
-                }
-              });
-              
-              // Make chart containers more compact
-              const chartContainers = element.querySelectorAll('[id^="bar-chart-container-"], [id^="pie-chart-container-"]');
-              chartContainers.forEach(container => {
-                if (container.style) {
-                  container.style.height = '250px';
-                }
-              });
-            }
+            scale: 2, // Higher resolution
+            logging: false,
+            backgroundColor: 'white',
+            useCORS: true
           });
           
           // Restore original styling
           itemElement.setAttribute('style', originalStyle);
           
-          const combinedChartImage = canvas.toDataURL('image/png', 1.0);
+          // Convert to image
+          const imageData = canvas.toDataURL('image/png');
+          
+          // Store the image data
           chartImagesArray.push({
             title: questionHeader,
-            src: combinedChartImage,
-            questionIndex: i,
-            type: 'combined'
+            src: imageData
           });
           
-          setStatusMessage(`Successfully captured chart ${i+1}/${chartItemElements.length}: ${questionHeader}`);
-        } catch (error) {
-          console.error(`Error capturing question ${i+1}:`, error);
-          setStatusMessage(`Error capturing chart ${i+1}/${chartItemElements.length}: ${error.message}`);
+          setStatusMessage(`Captured chart ${i+1}/${chartItemElements.length}`);
+        } catch (captureError) {
+          console.error(`Error capturing chart ${i+1}:`, captureError);
+          setStatusMessage(`Error capturing chart ${i+1}: ${captureError.message}`);
         }
       }
       
-      // Only show success message if we actually captured some charts
       if (chartImagesArray.length > 0) {
-        setStatusMessage(`✅ Successfully captured ${chartImagesArray.length} feedback charts!`);
+        setStatusMessage(`Successfully captured ${chartImagesArray.length} charts!`);
+        
+        // Skip Cloudinary upload for charts - store locally instead
+        setFormData(prevState => ({
+          ...prevState,
+          chartImages: chartImagesArray
+        }));
+        
+        // Update local state with chart images
         setChartImages(chartImagesArray);
         
-        // Update form data with the chart images
-        setFormData({
-          ...formData,
-          chartImages: chartImagesArray
-        });
+        setStatusMessage(`✅ Successfully captured ${chartImagesArray.length} charts! These will be included in your PDF report.`);
+        
+        // Scroll to feedback charts section with smooth animation
+        setTimeout(() => {
+          const feedbackChartSection = document.getElementById('feedback-charts-container');
+          if (feedbackChartSection) {
+            feedbackChartSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }, 1000);
+        
+        return chartImagesArray;
       } else {
-        setStatusMessage('No charts were captured. Please try again.');
+        setStatusMessage('No charts were captured. Please check your feedback data.');
+        return [];
       }
-      
-      return chartImagesArray;
     } catch (error) {
       console.error('Error capturing charts:', error);
       setStatusMessage(`Error capturing charts: ${error.message}`);
@@ -563,17 +598,64 @@ const ReportPDA = () => {
     }
   };
 
-  // Handle form submission
+  // Add a function to handle categorized image uploads
+  const handleCategorizedImageUpload = (uploadedImages, category) => {
+    // Default to 'general' if no category is provided
+    const imageCategory = category || 'general';
+    
+    console.log(`Received ${uploadedImages.length} uploaded images in category: ${imageCategory}`);
+    
+    // Update the imageFiles state with the new uploads - ensure we only add to specific category
+    setImageFiles(prevFiles => {
+      // Create a deep copy of the current state to avoid reference issues
+      const updatedFiles = { ...prevFiles };
+      
+      // Add new images to the appropriate category
+      updatedFiles[imageCategory] = [
+        ...prevFiles[imageCategory], 
+        ...uploadedImages
+      ];
+      
+      console.log(`Updated imageFiles state: ${imageCategory} category now has ${updatedFiles[imageCategory].length} images`);
+      return updatedFiles;
+    });
+    
+    // Also update the formData with the Cloudinary URLs
+    setFormData(prevData => {
+      // Get the existing categorized images or initialize if not present
+      const existingCategorizedImages = prevData.categorizedImages || {
+        team: [],
+        winners: [],
+        certificates: [],
+        general: []
+      };
+      
+      // Add the new image URLs to the appropriate category
+      const updatedCategorizedImages = {
+        ...existingCategorizedImages,
+        [imageCategory]: [
+          ...existingCategorizedImages[imageCategory],
+          ...uploadedImages.map(img => img.original)
+        ]
+      };
+      
+      console.log(`Updated formData: ${imageCategory} category now has ${updatedCategorizedImages[imageCategory].length} image URLs`);
+      
+      return {
+        ...prevData,
+        categorizedImages: updatedCategorizedImages
+      };
+    });
+    
+    setStatusMessage(`Successfully added ${uploadedImages.length} images to the ${imageCategory} category!`);
+  };
+
+  // ✅ Handle Form Submission
   const handleSubmit = async (e) => {
     e.preventDefault();
-
+    
     try {
       const token = localStorage.getItem("token");
-      
-      if (!token) {
-        console.error("No authentication token found");
-        return;
-      }
       
       // Check if we have chart data but no captured chart images
       if (chartData.length > 0 && (!chartImages || chartImages.length === 0)) {
@@ -582,32 +664,58 @@ const ReportPDA = () => {
         await captureCharts();
       }
       
-      // Create a copy of formData with reportType added
+      // Flatten all image URLs for backward compatibility
+      const allImageUrls = [
+        ...(formData.categorizedImages.team || []),
+        ...(formData.categorizedImages.winners || []),
+        ...(formData.categorizedImages.certificates || []),
+        ...(formData.categorizedImages.general || [])
+      ];
+      
+      // Create a copy of formData with latest data
       const reportDataToSave = {
         ...formData,
-        chartImages: chartImages, // Ensure latest chart images are included
-        reportType: 'pda' // Mark this as a PDA report
+        images: allImageUrls, // Use all Cloudinary URLs (flattened for backward compatibility)
+        chartImages: chartImages, // Use local base64 images for charts
+        reportType: 'pda'
       };
       
-      // Make the API call to save the report
+      console.log("Saving PDA report with chart images:", reportDataToSave.chartImages?.length);
+      console.log("Saving PDA report with uploaded images:", reportDataToSave.images?.length);
+      console.log("Saving PDA report with categorized images:", {
+        team: formData.categorizedImages.team?.length || 0,
+        winners: formData.categorizedImages.winners?.length || 0,
+        certificates: formData.categorizedImages.certificates?.length || 0,
+        general: formData.categorizedImages.general?.length || 0
+      });
+      
       const response = await axios.post("http://localhost:8000/api/reports", reportDataToSave, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
       console.log("PDA Report Created:", response.data);
-      
+
       // Show success message
       setSaveSuccess(true);
       
-      // Hide success message after 3 seconds
+      // Hide success message after 5 seconds
       setTimeout(() => {
         setSaveSuccess(false);
-      }, 3000);
+      }, 5000);
       
-      // The PDF will be generated through the BlobProvider in the UI
     } catch (error) {
-      console.error("Error creating PDA report:", error.response?.data || error.message);
-      alert("Failed to save PDA report. Please try again.");
+      console.error("Error creating PDA report:", error);
+      let errorMessage = "Failed to save PDA report.";
+      
+      if (error.response) {
+        errorMessage += ` Server responded with: ${error.response.status} - ${error.response.data.message || error.response.statusText}`;
+      } else if (error.request) {
+        errorMessage += " No response received from server. Please check your connection.";
+      } else {
+        errorMessage += ` Error: ${error.message}`;
+      }
+      
+      alert(errorMessage);
     }
   };
 
@@ -619,7 +727,12 @@ const ReportPDA = () => {
         URL.revokeObjectURL(img.preview);
       });
       
-      setImageFiles([]);
+      setImageFiles({
+        team: [],
+        winners: [],
+        certificates: [],
+        general: []
+      });
       setExcelFile(null);
       setFormData(initialFormState);
     }
@@ -659,12 +772,6 @@ const ReportPDA = () => {
 
   return (
     <div className="max-w-6xl mx-auto p-8">
-      <div className="flex items-center mb-6">
-        <Link to="/dashboard" className="flex items-center text-blue-600 hover:text-blue-800 mb-4">
-          <FaArrowLeft className="mr-2" /> Back to Dashboard
-        </Link>
-      </div>
-      
       <form onSubmit={handleSubmit} className="bg-white p-8 rounded-lg shadow-lg transform transition duration-500 hover:scale-102">
         <h2 className="text-2xl font-bold mb-6 text-gray-800">Create PDA Report</h2>
         
@@ -1244,15 +1351,196 @@ const ReportPDA = () => {
           </button>
         </div>
 
+        {/* PDA Images Section */}
+        <div className="border p-4 rounded-lg mb-4 bg-white shadow-sm">
+          <h3 className="text-xl font-semibold mb-6">PDA Event Images</h3>
+          
+          {/* Image category tabs */}
+          <div className="mb-6">
+            <h4 className="text-lg font-medium mb-3">Upload Images by Category</h4>
+            <p className="text-sm text-gray-600 mb-4">
+              Upload images for each category separately. These will be used in different sections of the PDF report.
+            </p>
+            
+            <div className="space-y-6">
+              {/* Team Images */}
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h5 className="text-md font-medium mb-2 text-blue-800">Team Images</h5>
+                <p className="text-sm text-gray-600 mb-3">Upload images of team members, organizers, and participants.</p>
+                <CloudinaryUploader 
+                  onUploadSuccess={(images) => handleCategorizedImageUpload(images, 'team')}
+                  onUploadError={(error) => {
+                    console.error("Cloudinary upload failed:", error);
+                    setStatusMessage(`Team image upload failed: ${error.message}`);
+                  }}
+                  buttonText="Upload Team Images"
+                  folder="pda_images"
+                  maxFiles={5}
+                  category="team"
+                  className="mb-2"
+                />
+                
+                {/* Team Images Preview */}
+                {imageFiles.team && imageFiles.team.length > 0 && (
+                  <div className="mt-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {imageFiles.team.map((file, index) => (
+                        <div key={index} className="relative group">
+                          <img 
+                            src={file.thumbnail || file.preview || file.original} 
+                            alt={`Team ${index + 1}`}
+                            className="w-full h-24 object-cover rounded border border-gray-200"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveImage(index, 'team')}
+                            className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Remove image"
+                          >
+                            <FaTrash size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Winners Images */}
+              <div className="bg-green-50 p-4 rounded-lg">
+                <h5 className="text-md font-medium mb-2 text-green-800">Winners Images</h5>
+                <p className="text-sm text-gray-600 mb-3">Upload images of award ceremonies, winners, and achievements.</p>
+                <CloudinaryUploader 
+                  onUploadSuccess={(images) => handleCategorizedImageUpload(images, 'winners')}
+                  onUploadError={(error) => {
+                    console.error("Cloudinary upload failed:", error);
+                    setStatusMessage(`Winners image upload failed: ${error.message}`);
+                  }}
+                  buttonText="Upload Winners Images"
+                  folder="pda_images"
+                  maxFiles={5}
+                  category="winners"
+                  className="mb-2"
+                />
+                
+                {/* Winners Images Preview */}
+                {imageFiles.winners && imageFiles.winners.length > 0 && (
+                  <div className="mt-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {imageFiles.winners.map((file, index) => (
+                        <div key={index} className="relative group">
+                          <img 
+                            src={file.thumbnail || file.preview || file.original} 
+                            alt={`Winner ${index + 1}`}
+                            className="w-full h-24 object-cover rounded border border-gray-200"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveImage(index, 'winners')}
+                            className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Remove image"
+                          >
+                            <FaTrash size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Certificates Images */}
+              <div className="bg-purple-50 p-4 rounded-lg">
+                <h5 className="text-md font-medium mb-2 text-purple-800">Certificates Images</h5>
+                <p className="text-sm text-gray-600 mb-3">Upload images of certificates, recognition, and formal documents.</p>
+                <CloudinaryUploader 
+                  onUploadSuccess={(images) => handleCategorizedImageUpload(images, 'certificates')}
+                  onUploadError={(error) => {
+                    console.error("Cloudinary upload failed:", error);
+                    setStatusMessage(`Certificates image upload failed: ${error.message}`);
+                  }}
+                  buttonText="Upload Certificate Images"
+                  folder="pda_images"
+                  maxFiles={5}
+                  category="certificates"
+                  className="mb-2"
+                />
+                
+                {/* Certificates Images Preview */}
+                {imageFiles.certificates && imageFiles.certificates.length > 0 && (
+                  <div className="mt-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {imageFiles.certificates.map((file, index) => (
+                        <div key={index} className="relative group">
+                          <img 
+                            src={file.thumbnail || file.preview || file.original} 
+                            alt={`Certificate ${index + 1}`}
+                            className="w-full h-24 object-cover rounded border border-gray-200"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveImage(index, 'certificates')}
+                            className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Remove image"
+                          >
+                            <FaTrash size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* General Images */}
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h5 className="text-md font-medium mb-2 text-gray-800">Other Images</h5>
+                <p className="text-sm text-gray-600 mb-3">Upload any other event-related images.</p>
+                <CloudinaryUploader 
+                  onUploadSuccess={(images) => handleCategorizedImageUpload(images, 'general')}
+                  onUploadError={(error) => {
+                    console.error("Cloudinary upload failed:", error);
+                    setStatusMessage(`Image upload failed: ${error.message}`);
+                  }}
+                  buttonText="Upload Other Images"
+                  folder="pda_images"
+                  maxFiles={5}
+                  category="general"
+                  className="mb-2"
+                />
+                
+                {/* General Images Preview */}
+                {imageFiles.general && imageFiles.general.length > 0 && (
+                  <div className="mt-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {imageFiles.general.map((file, index) => (
+                        <div key={index} className="relative group">
+                          <img 
+                            src={file.thumbnail || file.preview || file.original} 
+                            alt={`Image ${index + 1}`}
+                            className="w-full h-24 object-cover rounded border border-gray-200"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveImage(index, 'general')}
+                            className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Remove image"
+                          >
+                            <FaTrash size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Submit Button */}
         <div className="flex justify-between mt-6">
-          <div className="flex space-x-3">
-            <Link 
-              to="/dashboard" 
-              className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition duration-300"
-            >
-              Cancel
-            </Link>
+          <div>
             <button 
               type="button" 
               onClick={handleReset}
@@ -1357,6 +1645,19 @@ const ReportPDA = () => {
             </button>
           </div>
         </div>
+        
+        {/* Success message at the bottom of the form - similar to Expert Report */}
+        {saveSuccess && (
+          <div className="mt-6 p-4 bg-green-100 text-green-700 border border-green-300 rounded-md shadow-sm">
+            <div className="flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              <span className="font-medium">PDA Report saved successfully!</span>
+            </div>
+            <p className="text-sm mt-1 ml-7">Your report has been saved. You can view it in the Previous Reports section or continue editing.</p>
+          </div>
+        )}
       </form>
     </div>
   );

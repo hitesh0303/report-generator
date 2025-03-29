@@ -5,10 +5,20 @@ const reportSchema = new mongoose.Schema({
   subjectName: String,
   facultyName: String,
   date: String,
+  eventDate: String,
+  eventTime: String,
+  organizer: String,
+  courseName: String,
+  mode: String,
+  link: String,
   studentsAttended: Number,
   objectives: [String],
   description: String,
   learningOutcomes: String,
+  outcomes: {
+    type: [mongoose.Schema.Types.Mixed], // Can be String or Object
+    default: []
+  },
   targetYear: String,
   images: [String],
   feedback: Array,
@@ -23,16 +33,37 @@ const reportSchema = new mongoose.Schema({
   venue: String,
   fee: String,
   participants: String,
+  resourcePerson: String,
+  coPoMapping: [{
+    code: String,
+    description: String
+  }],
   faculty: [{ 
     name: String,
     role: String
   }],
   students: [String],
   execution: String,
-  outcomes: [String],
-  impactAnalysis: [String],
+  // Update impactAnalysis to allow objects with title and content
+  impactAnalysis: {
+    type: [mongoose.Schema.Types.Mixed], // Can accept either String or Object
+    default: []
+  },
   chartImages: Array,
-  excelData: Array
-}, { timestamps: true, strict: false });
+  excelData: Array,
+  feedbackData: Array,
+  categorizedImages: {
+    team: [String],
+    speakers: [String],
+    certificates: [String],
+    general: [String],
+    winners: [String] // For backward compatibility
+  }
+}, { 
+  timestamps: true, 
+  strict: false, // Allow fields not specified in schema
+  // Add this to prevent casting errors for nested document structures
+  typePojoToMixed: false
+});
 
 module.exports = mongoose.model('Report', reportSchema);
