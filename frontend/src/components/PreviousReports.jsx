@@ -688,7 +688,7 @@ const PreviousReports = () => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredReports.length === 0 ? (
                   <tr>
-                    <td colSpan={filter === 'pda' ? "4" : "5"} className="px-6 py-4 text-center text-gray-500">
+                    <td colSpan="5" className="px-6 py-4 text-center text-gray-500">
                       No {filter !== 'all' ? filter : ''} reports found
                     </td>
                   </tr>
