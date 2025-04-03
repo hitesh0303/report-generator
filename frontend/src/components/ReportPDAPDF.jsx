@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
         fontSize: 12
     },
     t3: { fontSize: 13, textAlign: 'left', marginBottom: 8 },
-    t5: { fontSize: 13, textAlign: 'left', marginBottom: 8 },
+    t5: { fontSize: 13, textAlign: 'left', marginBottom: 8, fontWeight: 'bold' },
     t4: { fontSize: 13, textAlign: 'left', marginLeft: 30 },
     t2: { fontSize: 12, textAlign: 'center', marginBottom: 10 },
     chartImage: { 
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
         alignSelf: "center",
         marginBottom: 15
     },
-    t1: { fontSize: 15, textAlign: 'center', marginBottom: 10, color: "red" },
+    t1: { fontSize: 20, textAlign: 'center', marginBottom: 10, color: "red" },
     header: { textAlign: 'center', fontSize: 16, marginBottom: 10 },
     table: { display: 'table', width: '100%' },
     tableRow: { flexDirection: 'row' },
@@ -463,25 +463,25 @@ const ReportPDAPDF = ({ data = {} }) => {
                     <SafeText style={styles.t5}>From: PDA Core team</SafeText>
 
                     <View style={styles.section}>
-                        <SafeText style={styles.boldText}>Faculty Members:</SafeText>
+                        <SafeText style={styles.t5}>Faculty Members:</SafeText>
                         {faculty.map((member, index) => (
                             <SafeText key={index} style={styles.list}>{index + 1}. {member.name || member}</SafeText>
                         ))}
                     </View>
 
                     <View style={styles.section}>
-                        <SafeText style={styles.boldText}>Students:</SafeText>
+                        <SafeText style={styles.t5}>Students:</SafeText>
                         {students.map((name, index) => (
                             <SafeText key={index} style={styles.list}>{index + 1}. {name}</SafeText>
                         ))}
                     </View>
 
                     <SafeText style={styles.t5}>Date and time of conduction: </SafeText>
-                    <SafeText style={styles.t3}>Date: {date}</SafeText>
-                    <SafeText style={styles.t3}>Time: {time}</SafeText>
-                    <SafeText style={styles.t3}>Venue: {venue}</SafeText>
-                    <SafeText style={styles.t3}>Fees: {fee}</SafeText>
-                    <SafeText style={styles.t3}>Number of participants: {participants}</SafeText>
+                    <SafeText style={styles.t5}>Date: {date}</SafeText>
+                    <SafeText style={styles.t5}>Time: {time}</SafeText>
+                    <SafeText style={styles.t5}>Venue: {venue}</SafeText>
+                    <SafeText style={styles.t5}>Fees: {fee}</SafeText>
+                    <SafeText style={styles.t5}>Number of participants: {participants}</SafeText>
                     
                     <View style={{ marginTop: 10 }}>
                         <SafeText style={styles.t5}>Organized by:</SafeText>
